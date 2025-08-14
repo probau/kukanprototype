@@ -297,33 +297,36 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
               originalMaxSize
             })
             
-            // Use new dimensions for camera positioning
+            // Position camera INSIDE the model bounds
             const finalMaxSize = Math.max(newSize.x, newSize.y, newSize.z)
-            const cameraDistance = finalMaxSize * 2.5 // Reduced from 6.0 to 2.5 for better framing
             
-            // Position camera to show entire model
-            camera.position.set(
-              newCenter.x + cameraDistance,
-              newCenter.y + cameraDistance * 0.8,
-              newCenter.z + cameraDistance
-            )
-            camera.lookAt(newCenter)
+            // Place camera at the center of the model
+            camera.position.copy(newCenter)
             
-            // Update OrbitControls
+            // Adjust FOV to ensure entire model is visible from inside
+            const aspectRatio = mountRef.current!.clientWidth / mountRef.current!.clientHeight
+            const requiredFOV = Math.atan2(finalMaxSize / 2, finalMaxSize * 0.1) * 2 * (180 / Math.PI)
+            camera.fov = Math.min(requiredFOV, 120) // Cap FOV at 120 degrees
+            
+            // Update camera projection
+            camera.updateProjectionMatrix()
+            
+            // Update OrbitControls - camera stays at center, controls rotate around it
             controls.target.copy(newCenter)
-            controls.minDistance = finalMaxSize * 0.3
-            controls.maxDistance = finalMaxSize * 15
+            controls.minDistance = 0.1 // Very close since we're inside
+            controls.maxDistance = finalMaxSize * 0.8 // Don't go outside model bounds
             
-            console.log('Camera positioned for small model:', {
+            console.log('Camera positioned INSIDE small model:', {
               originalMaxSize,
               finalMaxSize,
-              cameraDistance,
               position: camera.position.toArray(),
-              target: newCenter.toArray()
+              target: newCenter.toArray(),
+              fov: camera.fov,
+              aspectRatio
             })
           } else {
-            // Original logic for larger models
-            const optimalDistance = maxSize * 4.0 // Increased to 4x
+            // For larger models, use traditional outside positioning
+            const optimalDistance = maxSize * 2.0 // Reduced from 4.0 to 2.0
             
             // Position camera to show entire model
             camera.position.set(
@@ -335,8 +338,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             
             // Update OrbitControls
             controls.target.copy(finalCenter)
-            controls.minDistance = maxSize * 0.5
-            controls.maxDistance = maxSize * 10
+            controls.minDistance = maxSize * 0.3
+            controls.maxDistance = maxSize * 8
             
             console.log('Camera positioned for large model:', {
               originalMaxSize,
@@ -491,39 +494,58 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                       const center = box.getCenter(new THREE.Vector3())
                       const maxSize = Math.max(size.x, size.y, size.z)
                       
-                      let cameraDistance: number
-                      let targetCenter: THREE.Vector3
+                      // Check if this is a small model (original size < 3.0)
+                      // We need to estimate the original size from the current scaled size
+                      const estimatedOriginalSize = maxSize / 6.0 // Rough estimate based on typical scaling
                       
-                      if (maxSize < 2.0) {
-                        // If model is too small, calculate distance for larger scale
-                        const effectiveSize = 2.0
-                        cameraDistance = effectiveSize * 4.0
-                        targetCenter = center
+                      if (estimatedOriginalSize < 3.0) {
+                        // Small model - position camera INSIDE
+                        camera.position.copy(center)
+                        
+                        // Adjust FOV for better visibility from inside
+                        const aspectRatio = mountRef.current!.clientWidth / mountRef.current!.clientHeight
+                        const requiredFOV = Math.atan2(maxSize / 2, maxSize * 0.1) * 2 * (180 / Math.PI)
+                        camera.fov = Math.min(requiredFOV, 120)
+                        camera.updateProjectionMatrix()
+                        
+                        // Update controls - stay inside model bounds
+                        controls.target.copy(center)
+                        controls.minDistance = 0.1
+                        controls.maxDistance = maxSize * 0.8
+                        
+                        console.log('Reset camera INSIDE small model:', {
+                          estimatedOriginalSize,
+                          maxSize,
+                          position: camera.position.toArray(),
+                          target: center.toArray(),
+                          fov: camera.fov
+                        })
                       } else {
-                        // Use actual model size
-                        cameraDistance = maxSize * 4.0
-                        targetCenter = center
+                        // Large model - use traditional outside positioning
+                        const cameraDistance = maxSize * 2.0
+                        
+                        camera.position.set(
+                          center.x + cameraDistance,
+                          center.y + cameraDistance * 0.8,
+                          center.z + cameraDistance
+                        )
+                        camera.lookAt(center)
+                        camera.updateProjectionMatrix()
+                        
+                        // Update controls
+                        controls.target.copy(center)
+                        controls.minDistance = maxSize * 0.3
+                        controls.maxDistance = maxSize * 8
+                        
+                        console.log('Reset camera for large model:', {
+                          maxSize,
+                          cameraDistance,
+                          position: camera.position.toArray(),
+                          target: center.toArray()
+                        })
                       }
                       
-                      // Position camera to show entire model
-                      camera.position.set(
-                        targetCenter.x + cameraDistance,
-                        targetCenter.y + cameraDistance * 0.8,
-                        targetCenter.z + cameraDistance
-                      )
-                      camera.lookAt(targetCenter)
-                      camera.updateProjectionMatrix()
-                      
-                      // Update controls
-                      controls.target.copy(targetCenter)
                       controls.update()
-                      
-                      console.log('Reset camera:', {
-                        maxSize,
-                        cameraDistance,
-                        position: camera.position.toArray(),
-                        target: targetCenter.toArray()
-                      })
                     }
                   }
                 }
