@@ -172,9 +172,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     // Grid helper - will be repositioned after model loads
     const gridHelper = new THREE.GridHelper(10, 10)
     gridRef.current = gridHelper
-    if (showGrid) {
-      scene.add(gridHelper)
-    }
+    // Don't add initial grid to scene - wait for model to load and position it correctly
 
     // Load MTL materials first, then OBJ model
     const mtlLoader = new MTLLoader()
@@ -224,6 +222,11 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           // Center the model at origin
           object.position.sub(center)
           
+          // Scale to fit in view
+          const maxDim = Math.max(size.x, size.y, size.z)
+          const scale = 5 / maxDim
+          object.scale.setScalar(scale)
+          
           // Reposition and resize the existing grid to match model
           if (gridRef.current) {
             // Remove old grid from scene
@@ -231,7 +234,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           }
           
           // Create new grid with appropriate size
-          const gridSize = Math.max(size.x, size.z) * 5 / Math.max(size.x, size.y, size.z)
+          const gridSize = Math.max(size.x, size.z) * scale
           const newGridHelper = new THREE.GridHelper(gridSize, 20)
           newGridHelper.position.copy(object.position)
           
@@ -242,11 +245,6 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           if (showGrid) {
             scene.add(newGridHelper)
           }
-          
-          // Scale to fit in view
-          const maxDim = Math.max(size.x, size.y, size.z)
-          const scale = 5 / maxDim
-          object.scale.setScalar(scale)
           
           // Add to scene
           scene.add(object)
