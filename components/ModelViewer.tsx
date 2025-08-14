@@ -276,10 +276,12 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           
           // More aggressive scaling to ensure model is visible
           const maxSize = Math.max(finalSize.x, finalSize.y, finalSize.z)
-          if (maxSize < 3.0) { // Increased threshold from 2.0 to 3.0
+          const originalMaxSize = Math.max(size.x, size.y, size.z) // Check original size, not scaled
+          
+          if (originalMaxSize < 3.0) { // Check original size, not scaled size
             // If model is too small, scale it up more aggressively
-            const targetSize = maxSize < 1.0 ? 5.0 : 3.0 // Very small models get scaled to 5.0
-            const newScale = targetSize / maxSize
+            const targetSize = originalMaxSize < 1.0 ? 5.0 : 3.0 // Very small models get scaled to 5.0
+            const newScale = targetSize / originalMaxSize
             object.scale.multiplyScalar(newScale)
             
             // Recalculate bounds after rescaling
@@ -291,7 +293,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
               newSize,
               newCenter,
               newScale,
-              targetSize
+              targetSize,
+              originalMaxSize
             })
             
             // Use new dimensions for camera positioning
@@ -312,6 +315,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             controls.maxDistance = finalMaxSize * 15
             
             console.log('Camera positioned for small model:', {
+              originalMaxSize,
               finalMaxSize,
               cameraDistance,
               position: camera.position.toArray(),
@@ -335,6 +339,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             controls.maxDistance = maxSize * 10
             
             console.log('Camera positioned for large model:', {
+              originalMaxSize,
               maxSize,
               optimalDistance,
               position: camera.position.toArray(),
