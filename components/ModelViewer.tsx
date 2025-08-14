@@ -266,22 +266,52 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           const finalSize = finalBox.getSize(new THREE.Vector3())
           const finalCenter = finalBox.getCenter(new THREE.Vector3())
           
+          // Debug logging
+          console.log('Model loaded:', {
+            originalSize: size,
+            scaledSize: finalSize,
+            center: finalCenter,
+            scale: scale
+          })
+          
           // Calculate optimal camera distance to show entire model
           const maxSize = Math.max(finalSize.x, finalSize.y, finalSize.z)
-          const optimalDistance = maxSize * 2.0 // 2x the model size for good framing
+          const optimalDistance = maxSize * 3.0 // Increased to 3x for better framing
+          
+          // Calculate camera position to ensure entire model is visible
+          const fov = camera.fov * (Math.PI / 180) // Convert to radians
+          const aspect = camera.aspect
+          
+          // Calculate required distance based on field of view
+          const requiredDistanceX = (finalSize.x / 2) / Math.tan(fov / 2)
+          const requiredDistanceY = (finalSize.y / 2) / Math.tan(fov / 2) / aspect
+          const requiredDistance = Math.max(requiredDistanceX, requiredDistanceY, optimalDistance)
+          
+          console.log('Camera positioning:', {
+            maxSize,
+            optimalDistance,
+            requiredDistance,
+            fov: camera.fov,
+            aspect,
+            cameraPosition: [
+              finalCenter.x + requiredDistance,
+              finalCenter.y + requiredDistance * 0.6,
+              finalCenter.z + requiredDistance
+            ]
+          })
           
           // Position camera to show entire model
           camera.position.set(
-            finalCenter.x + optimalDistance,
-            finalCenter.y + optimalDistance * 0.8,
-            finalCenter.z + optimalDistance
+            finalCenter.x + requiredDistance,
+            finalCenter.y + requiredDistance * 0.6,
+            finalCenter.z + requiredDistance
           )
           camera.lookAt(finalCenter)
           
           // Update OrbitControls target and limits
           controls.target.copy(finalCenter)
-          controls.minDistance = maxSize * 0.5   // Can get closer to model
-          controls.maxDistance = maxSize * 6     // Can zoom out further
+          controls.minDistance = maxSize * 0.3   // Can get closer to model
+          controls.maxDistance = maxSize * 8     // Can zoom out further
           
           // Update camera projection
           camera.updateProjectionMatrix()
@@ -422,14 +452,21 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                       const center = box.getCenter(new THREE.Vector3())
                       const maxSize = Math.max(size.x, size.y, size.z)
                       
-                      // Calculate optimal camera distance
-                      const optimalDistance = maxSize * 2.0
+                      // Calculate optimal camera distance using the same logic
+                      const optimalDistance = maxSize * 3.0
+                      
+                      // Calculate required distance based on field of view
+                      const fov = camera.fov * (Math.PI / 180)
+                      const aspect = camera.aspect
+                      const requiredDistanceX = (size.x / 2) / Math.tan(fov / 2)
+                      const requiredDistanceY = (size.y / 2) / Math.tan(fov / 2) / aspect
+                      const requiredDistance = Math.max(requiredDistanceX, requiredDistanceY, optimalDistance)
                       
                       // Position camera to show entire model
                       camera.position.set(
-                        center.x + optimalDistance,
-                        center.y + optimalDistance * 0.8,
-                        center.z + optimalDistance
+                        center.x + requiredDistance,
+                        center.y + requiredDistance * 0.6,
+                        center.z + requiredDistance
                       )
                       camera.lookAt(center)
                       camera.updateProjectionMatrix()
