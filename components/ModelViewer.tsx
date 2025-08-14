@@ -310,7 +310,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             // Update OrbitControls - camera stays at center, controls rotate around it
             controls.target.copy(newCenter)
             controls.minDistance = 0.1 // Very close since we're inside
-            controls.maxDistance = finalMaxSize * 0.4 // Stay well inside model bounds
+            controls.maxDistance = finalMaxSize * 0.8 // Increased from 0.4 to 0.8 for more panning range
             controls.enablePan = true // Enable panning for exploration
             controls.screenSpacePanning = true // Better panning behavior
             
@@ -506,7 +506,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                         // Update controls - stay inside model bounds
                         controls.target.copy(center)
                         controls.minDistance = 0.1
-                        controls.maxDistance = maxSize * 0.4
+                        controls.maxDistance = maxSize * 0.8 // Increased from 0.4 to 0.8 for more panning range
                         controls.enablePan = true
                         controls.screenSpacePanning = true
                         
