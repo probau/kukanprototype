@@ -276,9 +276,10 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           
           // More aggressive scaling to ensure model is visible
           const maxSize = Math.max(finalSize.x, finalSize.y, finalSize.z)
-          if (maxSize < 2.0) {
-            // If model is too small, scale it up
-            const newScale = 2.0 / maxSize
+          if (maxSize < 3.0) { // Increased threshold from 2.0 to 3.0
+            // If model is too small, scale it up more aggressively
+            const targetSize = maxSize < 1.0 ? 5.0 : 3.0 // Very small models get scaled to 5.0
+            const newScale = targetSize / maxSize
             object.scale.multiplyScalar(newScale)
             
             // Recalculate bounds after rescaling
@@ -289,12 +290,13 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             console.log('Model rescaled:', {
               newSize,
               newCenter,
-              newScale
+              newScale,
+              targetSize
             })
             
             // Use new dimensions for camera positioning
             const finalMaxSize = Math.max(newSize.x, newSize.y, newSize.z)
-            const cameraDistance = finalMaxSize * 4.0 // Very aggressive distance
+            const cameraDistance = finalMaxSize * 6.0 // Very aggressive distance for small models
             
             // Position camera to show entire model
             camera.position.set(
@@ -306,8 +308,15 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             
             // Update OrbitControls
             controls.target.copy(newCenter)
-            controls.minDistance = finalMaxSize * 0.5
-            controls.maxDistance = finalMaxSize * 10
+            controls.minDistance = finalMaxSize * 0.3
+            controls.maxDistance = finalMaxSize * 15
+            
+            console.log('Camera positioned for small model:', {
+              finalMaxSize,
+              cameraDistance,
+              position: camera.position.toArray(),
+              target: newCenter.toArray()
+            })
           } else {
             // Original logic for larger models
             const optimalDistance = maxSize * 4.0 // Increased to 4x
@@ -324,6 +333,13 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             controls.target.copy(finalCenter)
             controls.minDistance = maxSize * 0.5
             controls.maxDistance = maxSize * 10
+            
+            console.log('Camera positioned for large model:', {
+              maxSize,
+              optimalDistance,
+              position: camera.position.toArray(),
+              target: finalCenter.toArray()
+            })
           }
           
           console.log('Final camera position:', {
