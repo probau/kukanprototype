@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js'
 import { Scan } from '@/types/scan'
-import { Camera } from 'lucide-react'
+import { Camera, Grid3X3 } from 'lucide-react'
 
 interface ModelViewerProps {
   scan: Scan
@@ -25,9 +25,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
   const [error, setError] = useState<string | null>(null)
   const [showGrid, setShowGrid] = useState(true)
   const [isCapturing, setIsCapturing] = useState(false)
-  const [lightingMode, setLightingMode] = useState<'normal' | 'bright' | 'studio'>('bright') // Default to bright for photogrammetry
   const gridRef = useRef<THREE.GridHelper | null>(null)
-  const lightsRef = useRef<THREE.Group | null>(null)
 
   // Expose screenshot method to parent component
   useImperativeHandle(ref, () => ({
@@ -58,45 +56,15 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     }
   }))
 
-  const updateLighting = (mode: 'normal' | 'bright' | 'studio') => {
-    if (!lightsRef.current) return
-    
-    const lights = lightsRef.current.children as THREE.Light[]
-    
-    switch (mode) {
-      case 'bright':
-        lights.forEach((light, index) => {
-          if (light instanceof THREE.AmbientLight) {
-            light.intensity = 1.2
-          } else if (light instanceof THREE.DirectionalLight) {
-            light.intensity = index === 0 ? 1.5 : 0.8
-          } else if (light instanceof THREE.HemisphereLight) {
-            light.intensity = 1.0
-          }
-        })
-        break
-      case 'studio':
-        lights.forEach((light, index) => {
-          if (light instanceof THREE.AmbientLight) {
-            light.intensity = 0.6
-          } else if (light instanceof THREE.DirectionalLight) {
-            light.intensity = index === 0 ? 2.0 : 1.0
-          } else if (light instanceof THREE.HemisphereLight) {
-            light.intensity = 0.4
-          }
-        })
-        break
-      default: // normal
-        lights.forEach((light, index) => {
-          if (light instanceof THREE.AmbientLight) {
-            light.intensity = 0.8
-          } else if (light instanceof THREE.DirectionalLight) {
-            light.intensity = index === 0 ? 1.0 : (index === 1 ? 0.4 : 0.3)
-          } else if (light instanceof THREE.HemisphereLight) {
-            light.intensity = 0.6
-          }
-        })
-        break
+  // Toggle grid visibility
+  const toggleGrid = () => {
+    if (gridRef.current && sceneRef.current) {
+      if (showGrid) {
+        sceneRef.current.remove(gridRef.current)
+      } else {
+        sceneRef.current.add(gridRef.current)
+      }
+      setShowGrid(!showGrid)
     }
   }
 
@@ -105,7 +73,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
 
     // Scene setup
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0xf8f9fa) // Lighter background for better contrast
+    scene.background = new THREE.Color(0xf0f0f0)
     sceneRef.current = scene
 
     // Camera setup
@@ -124,54 +92,25 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight)
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
-    renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.2
     rendererRef.current = renderer
 
     mountRef.current.appendChild(renderer.domElement)
 
-    // Create lights group for easy management
-    const lightsGroup = new THREE.Group()
-    lightsRef.current = lightsGroup
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
+    scene.add(ambientLight)
 
-    // Lighting - Enhanced for better visibility
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8) // Increased intensity
-    lightsGroup.add(ambientLight)
-
-    // Main directional light for shadows and primary illumination
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
     directionalLight.position.set(10, 10, 5)
     directionalLight.castShadow = true
-    directionalLight.shadow.mapSize.width = 2048
-    directionalLight.shadow.mapSize.height = 2048
-    directionalLight.shadow.camera.near = 0.5
-    directionalLight.shadow.camera.far = 50
-    lightsGroup.add(directionalLight)
-
-    // Additional fill lights for better coverage
-    const fillLight1 = new THREE.DirectionalLight(0xffffff, 0.4)
-    fillLight1.position.set(-10, 5, 10)
-    lightsGroup.add(fillLight1)
-
-    const fillLight2 = new THREE.DirectionalLight(0xffffff, 0.3)
-    fillLight2.position.set(5, -5, -10)
-    lightsGroup.add(fillLight2)
-
-    // Top light for overhead illumination
-    const topLight = new THREE.DirectionalLight(0xffffff, 0.5)
-    topLight.position.set(0, 15, 0)
-    lightsGroup.add(topLight)
-
-    // Hemisphere light for natural color balance
-    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6)
-    lightsGroup.add(hemisphereLight)
-
-    // Add all lights to scene
-    scene.add(lightsGroup)
+    scene.add(directionalLight)
 
     // Grid helper - will be repositioned after model loads
     const gridHelper = new THREE.GridHelper(10, 10)
-    scene.add(gridHelper)
+    gridRef.current = gridHelper
+    if (showGrid) {
+      scene.add(gridHelper)
+    }
 
     // Load MTL materials first, then OBJ model
     const mtlLoader = new MTLLoader()
@@ -221,20 +160,29 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           // Center the model at origin
           object.position.sub(center)
           
-          // Reposition grid to match model center
-          gridHelper.position.copy(object.position)
-          
           // Scale to fit in view
           const maxDim = Math.max(size.x, size.y, size.z)
           const scale = 5 / maxDim
           object.scale.setScalar(scale)
           
-          // Adjust grid size based on model
-          const gridSize = Math.max(size.x, size.z) * scale
-          scene.remove(gridHelper)
-          const newGridHelper = new THREE.GridHelper(gridSize, 20)
-          newGridHelper.position.copy(object.position)
-          scene.add(newGridHelper)
+          // Reposition and resize the existing grid to match model
+          if (gridRef.current) {
+            // Remove old grid from scene
+            scene.remove(gridRef.current)
+            
+            // Create new grid with appropriate size
+            const gridSize = Math.max(size.x, size.z) * scale
+            const newGridHelper = new THREE.GridHelper(gridSize, 20)
+            newGridHelper.position.copy(object.position)
+            
+            // Update the grid reference
+            gridRef.current = newGridHelper
+            
+            // Add to scene only if grid should be visible
+            if (showGrid) {
+              scene.add(newGridHelper)
+            }
+          }
           
           // Add to scene
           scene.add(object)
@@ -351,14 +299,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       
       renderer.dispose()
     }
-  }, [scan])
-
-  // Apply initial lighting mode
-  useEffect(() => {
-    if (lightsRef.current) {
-      updateLighting(lightingMode)
-    }
-  }, [lightingMode])
+  }, [scan, showGrid])
 
   return (
     <div className="relative w-full h-full">
@@ -381,6 +322,21 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         </div>
       )}
 
+      {/* Grid Toggle Button */}
+      <div className="absolute top-4 right-4">
+        <button
+          onClick={toggleGrid}
+          className={`p-2 rounded-lg shadow-lg transition-all ${
+            showGrid 
+              ? 'bg-blue-600 text-white hover:bg-blue-700' 
+              : 'bg-gray-600 text-white hover:bg-gray-700'
+          }`}
+          title={showGrid ? 'Hide Grid' : 'Show Grid'}
+        >
+          <Grid3X3 className="h-5 w-5" />
+        </button>
+      </div>
+
       {/* Screenshot capture indicator */}
       {isCapturing && (
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 pointer-events-none">
@@ -394,52 +350,6 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       {/* Controls hint */}
       <div className="absolute bottom-2 left-2 text-xs text-gray-500 bg-white bg-opacity-75 px-2 py-1 rounded">
         Click + drag to rotate • Scroll to zoom
-      </div>
-
-      {/* Lighting Controls */}
-      <div className="absolute top-2 right-2 bg-white bg-opacity-90 rounded-lg shadow-lg p-2">
-        <div className="text-xs text-gray-600 mb-1 font-medium">Lighting</div>
-        <div className="flex space-x-1">
-          <button
-            onClick={() => {
-              setLightingMode('normal')
-              updateLighting('normal')
-            }}
-            className={`px-2 py-1 text-xs rounded ${
-              lightingMode === 'normal' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Normal
-          </button>
-          <button
-            onClick={() => {
-              setLightingMode('bright')
-              updateLighting('bright')
-            }}
-            className={`px-2 py-1 text-xs rounded ${
-              lightingMode === 'bright' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Bright
-          </button>
-          <button
-            onClick={() => {
-              setLightingMode('studio')
-              updateLighting('studio')
-            }}
-            className={`px-2 py-1 text-xs rounded ${
-              lightingMode === 'studio' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Studio
-          </button>
-        </div>
       </div>
     </div>
   )
