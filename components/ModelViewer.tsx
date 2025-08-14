@@ -303,26 +303,23 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             // Place camera at the center of the model
             camera.position.copy(newCenter)
             
-            // Adjust FOV to ensure entire model is visible from inside
-            const aspectRatio = mountRef.current!.clientWidth / mountRef.current!.clientHeight
-            const requiredFOV = Math.atan2(finalMaxSize / 2, finalMaxSize * 0.1) * 2 * (180 / Math.PI)
-            camera.fov = Math.min(requiredFOV, 120) // Cap FOV at 120 degrees
-            
-            // Update camera projection
+            // Keep default FOV (no adjustment needed)
+            camera.fov = 75
             camera.updateProjectionMatrix()
             
             // Update OrbitControls - camera stays at center, controls rotate around it
             controls.target.copy(newCenter)
             controls.minDistance = 0.1 // Very close since we're inside
-            controls.maxDistance = finalMaxSize * 0.8 // Don't go outside model bounds
+            controls.maxDistance = finalMaxSize * 0.4 // Stay well inside model bounds
+            controls.enablePan = true // Enable panning for exploration
+            controls.screenSpacePanning = true // Better panning behavior
             
             console.log('Camera positioned INSIDE small model:', {
               originalMaxSize,
               finalMaxSize,
               position: camera.position.toArray(),
               target: newCenter.toArray(),
-              fov: camera.fov,
-              aspectRatio
+              fov: camera.fov
             })
           } else {
             // For larger models, use traditional outside positioning
@@ -502,16 +499,16 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                         // Small model - position camera INSIDE
                         camera.position.copy(center)
                         
-                        // Adjust FOV for better visibility from inside
-                        const aspectRatio = mountRef.current!.clientWidth / mountRef.current!.clientHeight
-                        const requiredFOV = Math.atan2(maxSize / 2, maxSize * 0.1) * 2 * (180 / Math.PI)
-                        camera.fov = Math.min(requiredFOV, 120)
+                        // Keep default FOV (no adjustment needed)
+                        camera.fov = 75
                         camera.updateProjectionMatrix()
                         
                         // Update controls - stay inside model bounds
                         controls.target.copy(center)
                         controls.minDistance = 0.1
-                        controls.maxDistance = maxSize * 0.8
+                        controls.maxDistance = maxSize * 0.4
+                        controls.enablePan = true
+                        controls.screenSpacePanning = true
                         
                         console.log('Reset camera INSIDE small model:', {
                           estimatedOriginalSize,
