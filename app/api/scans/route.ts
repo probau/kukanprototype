@@ -23,13 +23,13 @@ export async function GET() {
         const folderPath = path.join(scansDir, folder.name)
         const files = await fs.readdir(folderPath)
         
-        // Check for required files
+        // Check for required files - only need .obj file now
         const hasModel = files.some(file => file.endsWith('.obj'))
         const hasMtl = files.some(file => file.endsWith('.mtl'))
         const hasTextures = files.some(file => file === 'textures')
-        const hasRoomImage = files.some(file => file === 'room.jpg')
         
-        if (hasModel && hasRoomImage) {
+        // Only require 3D model (.obj file) - no more room.jpg requirement
+        if (hasModel) {
           const modelFile = files.find(file => file.endsWith('.obj'))
           const mtlFile = hasMtl ? files.find(file => file.endsWith('.mtl')) : undefined
           const textureFolder = hasTextures ? 'textures' : undefined
@@ -40,7 +40,7 @@ export async function GET() {
             folder: folder.name,
             modelPath: `/scans/${folder.name}/${modelFile}`,
             texturePath: textureFolder ? `/scans/${folder.name}/${textureFolder}` : undefined,
-            roomImagePath: `/scans/${folder.name}/room.jpg`,
+            roomImagePath: `/scans/${folder.name}/room.jpg`, // Keep for backward compatibility but not required
             hasMtl: hasMtl
           })
         }

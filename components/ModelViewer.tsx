@@ -25,7 +25,9 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
   const [error, setError] = useState<string | null>(null)
   const [showGrid, setShowGrid] = useState(true)
   const [isCapturing, setIsCapturing] = useState(false)
+  const [lightingMode, setLightingMode] = useState<'normal' | 'bright' | 'studio'>('bright') // Default to bright for photogrammetry
   const gridRef = useRef<THREE.GridHelper | null>(null)
+  const lightsRef = useRef<THREE.Group | null>(null)
 
   // Expose screenshot method to parent component
   useImperativeHandle(ref, () => ({
@@ -56,12 +58,54 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     }
   }))
 
+  const updateLighting = (mode: 'normal' | 'bright' | 'studio') => {
+    if (!lightsRef.current) return
+    
+    const lights = lightsRef.current.children as THREE.Light[]
+    
+    switch (mode) {
+      case 'bright':
+        lights.forEach((light, index) => {
+          if (light instanceof THREE.AmbientLight) {
+            light.intensity = 1.2
+          } else if (light instanceof THREE.DirectionalLight) {
+            light.intensity = index === 0 ? 1.5 : 0.8
+          } else if (light instanceof THREE.HemisphereLight) {
+            light.intensity = 1.0
+          }
+        })
+        break
+      case 'studio':
+        lights.forEach((light, index) => {
+          if (light instanceof THREE.AmbientLight) {
+            light.intensity = 0.6
+          } else if (light instanceof THREE.DirectionalLight) {
+            light.intensity = index === 0 ? 2.0 : 1.0
+          } else if (light instanceof THREE.HemisphereLight) {
+            light.intensity = 0.4
+          }
+        })
+        break
+      default: // normal
+        lights.forEach((light, index) => {
+          if (light instanceof THREE.AmbientLight) {
+            light.intensity = 0.8
+          } else if (light instanceof THREE.DirectionalLight) {
+            light.intensity = index === 0 ? 1.0 : (index === 1 ? 0.4 : 0.3)
+          } else if (light instanceof THREE.HemisphereLight) {
+            light.intensity = 0.6
+          }
+        })
+        break
+    }
+  }
+
   useEffect(() => {
     if (!mountRef.current) return
 
     // Scene setup
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0xf0f0f0)
+    scene.background = new THREE.Color(0xf8f9fa) // Lighter background for better contrast
     sceneRef.current = scene
 
     // Camera setup
@@ -80,18 +124,50 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight)
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.2
     rendererRef.current = renderer
 
     mountRef.current.appendChild(renderer.domElement)
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
-    scene.add(ambientLight)
+    // Create lights group for easy management
+    const lightsGroup = new THREE.Group()
+    lightsRef.current = lightsGroup
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
+    // Lighting - Enhanced for better visibility
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8) // Increased intensity
+    lightsGroup.add(ambientLight)
+
+    // Main directional light for shadows and primary illumination
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0)
     directionalLight.position.set(10, 10, 5)
     directionalLight.castShadow = true
-    scene.add(directionalLight)
+    directionalLight.shadow.mapSize.width = 2048
+    directionalLight.shadow.mapSize.height = 2048
+    directionalLight.shadow.camera.near = 0.5
+    directionalLight.shadow.camera.far = 50
+    lightsGroup.add(directionalLight)
+
+    // Additional fill lights for better coverage
+    const fillLight1 = new THREE.DirectionalLight(0xffffff, 0.4)
+    fillLight1.position.set(-10, 5, 10)
+    lightsGroup.add(fillLight1)
+
+    const fillLight2 = new THREE.DirectionalLight(0xffffff, 0.3)
+    fillLight2.position.set(5, -5, -10)
+    lightsGroup.add(fillLight2)
+
+    // Top light for overhead illumination
+    const topLight = new THREE.DirectionalLight(0xffffff, 0.5)
+    topLight.position.set(0, 15, 0)
+    lightsGroup.add(topLight)
+
+    // Hemisphere light for natural color balance
+    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6)
+    lightsGroup.add(hemisphereLight)
+
+    // Add all lights to scene
+    scene.add(lightsGroup)
 
     // Grid helper - will be repositioned after model loads
     const gridHelper = new THREE.GridHelper(10, 10)
@@ -277,6 +353,13 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     }
   }, [scan])
 
+  // Apply initial lighting mode
+  useEffect(() => {
+    if (lightsRef.current) {
+      updateLighting(lightingMode)
+    }
+  }, [lightingMode])
+
   return (
     <div className="relative w-full h-full">
       <div ref={mountRef} className="w-full h-full" />
@@ -311,6 +394,52 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       {/* Controls hint */}
       <div className="absolute bottom-2 left-2 text-xs text-gray-500 bg-white bg-opacity-75 px-2 py-1 rounded">
         Click + drag to rotate • Scroll to zoom
+      </div>
+
+      {/* Lighting Controls */}
+      <div className="absolute top-2 right-2 bg-white bg-opacity-90 rounded-lg shadow-lg p-2">
+        <div className="text-xs text-gray-600 mb-1 font-medium">Lighting</div>
+        <div className="flex space-x-1">
+          <button
+            onClick={() => {
+              setLightingMode('normal')
+              updateLighting('normal')
+            }}
+            className={`px-2 py-1 text-xs rounded ${
+              lightingMode === 'normal' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Normal
+          </button>
+          <button
+            onClick={() => {
+              setLightingMode('bright')
+              updateLighting('bright')
+            }}
+            className={`px-2 py-1 text-xs rounded ${
+              lightingMode === 'bright' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Bright
+          </button>
+          <button
+            onClick={() => {
+              setLightingMode('studio')
+              updateLighting('studio')
+            }}
+            className={`px-2 py-1 text-xs rounded ${
+              lightingMode === 'studio' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Studio
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -4,7 +4,7 @@ export interface Scan {
   folder: string
   modelPath: string
   texturePath?: string
-  roomImagePath: string
+  roomImagePath?: string  // Now optional since we use dynamic screenshots
   hasMtl?: boolean
 }
 
@@ -20,5 +20,5 @@ export interface ScanFolder {
   path: string
   hasModel: boolean
   hasTextures: boolean
-  hasRoomImage: boolean
+  hasRoomImage?: boolean  // Now optional
 }
