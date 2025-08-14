@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 're
 import * as THREE from 'three'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { Scan } from '@/types/scan'
 import { Camera, Grid3X3 } from 'lucide-react'
 
@@ -130,6 +131,16 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
 
     mountRef.current.appendChild(renderer.domElement)
 
+    // Add OrbitControls for smooth camera movement
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.dampingFactor = 0.05
+    controls.screenSpacePanning = false
+    controls.minDistance = 0.5
+    controls.maxDistance = 50
+    controls.maxPolarAngle = Math.PI
+    controlsRef.current = controls
+
     // Create lights group for easy management
     const lightsGroup = new THREE.Group()
     lightsRef.current = lightsGroup
@@ -214,7 +225,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       objLoader.load(
         scan.modelPath,
         (object) => {
-          // Calculate model bounds
+          // Calculate model bounds BEFORE centering
           const box = new THREE.Box3().setFromObject(object)
           const center = box.getCenter(new THREE.Vector3())
           const size = box.getSize(new THREE.Vector3())
@@ -222,9 +233,9 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           // Center the model at origin
           object.position.sub(center)
           
-          // Scale to fit in view
+          // Scale to fit in view (but don't make it too small)
           const maxDim = Math.max(size.x, size.y, size.z)
-          const scale = 5 / maxDim
+          const scale = Math.max(1.0, 5 / maxDim) // Ensure minimum scale of 1.0
           object.scale.setScalar(scale)
           
           // Reposition and resize the existing grid to match model
@@ -250,17 +261,33 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           scene.add(object)
           setIsLoading(false)
 
-          // Auto-rotate camera to show model
-          camera.position.set(5 * scale, 5 * scale, 5 * scale)
-          camera.lookAt(0, 0, 0)
+          // Calculate final model bounds AFTER scaling and positioning
+          const finalBox = new THREE.Box3().setFromObject(object)
+          const finalSize = finalBox.getSize(new THREE.Vector3())
+          const finalCenter = finalBox.getCenter(new THREE.Vector3())
           
-          // Ensure camera doesn't get too close or too far
-          const minDistance = maxDim * scale * 0.5
-          const maxDistance = maxDim * scale * 3
-          camera.position.clampLength(minDistance, maxDistance)
+          // Calculate optimal camera distance to show entire model
+          const maxSize = Math.max(finalSize.x, finalSize.y, finalSize.z)
+          const optimalDistance = maxSize * 2.0 // 2x the model size for good framing
           
-          // Update camera controls
+          // Position camera to show entire model
+          camera.position.set(
+            finalCenter.x + optimalDistance,
+            finalCenter.y + optimalDistance * 0.8,
+            finalCenter.z + optimalDistance
+          )
+          camera.lookAt(finalCenter)
+          
+          // Update OrbitControls target and limits
+          controls.target.copy(finalCenter)
+          controls.minDistance = maxSize * 0.5   // Can get closer to model
+          controls.maxDistance = maxSize * 6     // Can zoom out further
+          
+          // Update camera projection
           camera.updateProjectionMatrix()
+          
+          // Update controls
+          controls.update()
         },
         (progress) => {
           // Progress callback
@@ -276,6 +303,12 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     // Animation loop
     const animate = () => {
       requestAnimationFrame(animate)
+      
+      // Update OrbitControls
+      if (controlsRef.current) {
+        controlsRef.current.update()
+      }
+      
       renderer.render(scene, camera)
     }
     animate()
@@ -294,66 +327,9 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
 
     window.addEventListener('resize', handleResize)
 
-    // Mouse controls for rotation
-    let isMouseDown = false
-    let mouseX = 0
-    let mouseY = 0
-
-    const onMouseDown = (event: MouseEvent) => {
-      isMouseDown = true
-      mouseX = event.clientX
-      mouseY = event.clientY
-    }
-
-    const onMouseMove = (event: MouseEvent) => {
-      if (!isMouseDown) return
-
-      const deltaX = event.clientX - mouseX
-      const deltaY = event.clientY - mouseY
-
-      if (camera) {
-        const spherical = new THREE.Spherical()
-        spherical.setFromVector3(camera.position)
-        spherical.theta -= deltaX * 0.01
-        spherical.phi += deltaY * 0.01
-        spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi))
-        
-        camera.position.setFromSpherical(spherical)
-        camera.lookAt(0, 0, 0)
-      }
-
-      mouseX = event.clientX
-      mouseY = event.clientY
-    }
-
-    const onMouseUp = () => {
-      isMouseDown = false
-    }
-
-    const onWheel = (event: WheelEvent) => {
-      if (!camera) return
-      
-      const zoomSpeed = 0.1
-      const distance = camera.position.length()
-      const newDistance = distance + event.deltaY * zoomSpeed
-      
-      if (newDistance > 1 && newDistance < 20) {
-        camera.position.normalize().multiplyScalar(newDistance)
-      }
-    }
-
-    renderer.domElement.addEventListener('mousedown', onMouseDown)
-    renderer.domElement.addEventListener('mousemove', onMouseMove)
-    renderer.domElement.addEventListener('mouseup', onMouseUp)
-    renderer.domElement.addEventListener('wheel', onWheel)
-
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize)
-      renderer.domElement.removeEventListener('mousedown', onMouseDown)
-      renderer.domElement.removeEventListener('mousemove', onMouseMove)
-      renderer.domElement.removeEventListener('mouseup', onMouseUp)
-      renderer.domElement.removeEventListener('wheel', onWheel)
       
       if (mountRef.current && renderer.domElement) {
         mountRef.current.removeChild(renderer.domElement)
@@ -414,12 +390,67 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       
       {/* Controls hint */}
       <div className="absolute bottom-2 left-2 text-xs text-gray-500 bg-white bg-opacity-75 px-2 py-1 rounded">
-        Click + drag to rotate • Scroll to zoom
+        Left click + drag to rotate • Right click + drag to pan • Scroll to zoom
       </div>
 
       {/* Combined Controls Panel */}
       <div className="absolute top-2 right-2 bg-white bg-opacity-90 rounded-lg shadow-lg p-3">
         <div className="flex items-center space-x-4">
+          {/* Reset Camera Button */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                if (controlsRef.current && cameraRef.current) {
+                  // Reset to optimal viewing position
+                  const camera = cameraRef.current
+                  const controls = controlsRef.current
+                  
+                  // Get current model bounds to calculate optimal position
+                  const scene = sceneRef.current
+                  if (scene) {
+                    // Find the 3D model object (skip lights, grid, etc.)
+                    let modelObject = null
+                    scene.traverse((child) => {
+                      if (child.type === 'Group' && child !== lightsRef.current && child !== gridRef.current) {
+                        modelObject = child
+                      }
+                    })
+                    
+                    if (modelObject) {
+                      const box = new THREE.Box3().setFromObject(modelObject)
+                      const size = box.getSize(new THREE.Vector3())
+                      const center = box.getCenter(new THREE.Vector3())
+                      const maxSize = Math.max(size.x, size.y, size.z)
+                      
+                      // Calculate optimal camera distance
+                      const optimalDistance = maxSize * 2.0
+                      
+                      // Position camera to show entire model
+                      camera.position.set(
+                        center.x + optimalDistance,
+                        center.y + optimalDistance * 0.8,
+                        center.z + optimalDistance
+                      )
+                      camera.lookAt(center)
+                      camera.updateProjectionMatrix()
+                      
+                      // Update controls
+                      controls.target.copy(center)
+                      controls.update()
+                    }
+                  }
+                }
+              }}
+              className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+              title="Reset Camera View"
+            >
+              Reset View
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="w-px h-8 bg-gray-300"></div>
+
           {/* Grid Toggle */}
           <div className="flex items-center space-x-2">
             <span className="text-xs text-gray-600 font-medium">Grid</span>
