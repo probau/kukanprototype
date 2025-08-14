@@ -230,12 +230,41 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           const center = box.getCenter(new THREE.Vector3())
           const size = box.getSize(new THREE.Vector3())
           
+          // Validate bounds to prevent NaN values
+          if (isNaN(center.x) || isNaN(center.y) || isNaN(center.z) ||
+              isNaN(size.x) || isNaN(size.y) || isNaN(size.z)) {
+            console.error('Invalid model bounds detected:', { center, size })
+            setError('Model has invalid geometry - cannot load')
+            setIsLoading(false)
+            return
+          }
+          
+          // Validate size values
+          if (size.x <= 0 || size.y <= 0 || size.z <= 0) {
+            console.error('Model has zero or negative dimensions:', size)
+            setError('Model has invalid dimensions - cannot load')
+            setIsLoading(false)
+            return
+          }
+          
+          console.log('Model bounds validation passed:', { center, size })
+          
           // Center the model at origin
           object.position.sub(center)
           
           // Scale to fit in view (but don't make it too small)
           const maxDim = Math.max(size.x, size.y, size.z)
           const scale = Math.max(1.0, 5 / maxDim) // Ensure minimum scale of 1.0
+          
+          // Validate scale value
+          if (isNaN(scale) || scale <= 0) {
+            console.error('Invalid scale calculated:', { maxDim, scale })
+            setError('Model scaling failed - cannot load')
+            setIsLoading(false)
+            return
+          }
+          
+          console.log('Scale calculation:', { maxDim, scale })
           object.scale.setScalar(scale)
           
           // Reposition and resize the existing grid to match model
@@ -282,12 +311,31 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             // If model is too small, scale it up more aggressively
             const targetSize = originalMaxSize < 1.0 ? 5.0 : 3.0 // Very small models get scaled to 5.0
             const newScale = targetSize / originalMaxSize
+            
+            // Validate newScale
+            if (isNaN(newScale) || newScale <= 0) {
+              console.error('Invalid newScale calculated:', { targetSize, originalMaxSize, newScale })
+              setError('Model rescaling failed - cannot load')
+              setIsLoading(false)
+              return
+            }
+            
+            console.log('Rescaling model:', { targetSize, originalMaxSize, newScale })
             object.scale.multiplyScalar(newScale)
             
             // Recalculate bounds after rescaling
             const newBox = new THREE.Box3().setFromObject(object)
             const newSize = newBox.getSize(new THREE.Vector3())
             const newCenter = newBox.getCenter(new THREE.Vector3())
+            
+            // Validate new bounds
+            if (isNaN(newSize.x) || isNaN(newSize.y) || isNaN(newSize.z) ||
+                isNaN(newCenter.x) || isNaN(newCenter.y) || isNaN(newCenter.z)) {
+              console.error('Invalid bounds after rescaling:', { newSize, newCenter })
+              setError('Model rescaling produced invalid geometry - cannot load')
+              setIsLoading(false)
+              return
+            }
             
             console.log('Model rescaled:', {
               newSize,
