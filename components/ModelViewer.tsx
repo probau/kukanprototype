@@ -299,7 +299,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             
             // Use new dimensions for camera positioning
             const finalMaxSize = Math.max(newSize.x, newSize.y, newSize.z)
-            const cameraDistance = finalMaxSize * 6.0 // Very aggressive distance for small models
+            const cameraDistance = finalMaxSize * 2.5 // Reduced from 6.0 to 2.5 for better framing
             
             // Position camera to show entire model
             camera.position.set(
