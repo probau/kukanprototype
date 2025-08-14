@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js'
 import { Scan } from '@/types/scan'
-import { Camera } from 'lucide-react'
+import { Camera, Grid3X3 } from 'lucide-react'
 
 interface ModelViewerProps {
   scan: Scan
@@ -394,6 +394,21 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       {/* Controls hint */}
       <div className="absolute bottom-2 left-2 text-xs text-gray-500 bg-white bg-opacity-75 px-2 py-1 rounded">
         Click + drag to rotate • Scroll to zoom
+      </div>
+
+      {/* Grid Toggle Button */}
+      <div className="absolute top-2 right-32">
+        <button
+          onClick={() => setShowGrid(!showGrid)}
+          className={`p-2 rounded-lg shadow-lg transition-all ${
+            showGrid 
+              ? 'bg-blue-600 text-white hover:bg-blue-700' 
+              : 'bg-gray-600 text-white hover:bg-gray-700'
+          }`}
+          title={showGrid ? 'Hide Grid' : 'Show Grid'}
+        >
+          <Grid3X3 className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Lighting Controls */}

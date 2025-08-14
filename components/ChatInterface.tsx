@@ -147,7 +147,7 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
   }
 
   return (
-    <div className="flex flex-col h-96">
+    <div className="flex flex-col h-full">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-2">
         {messages.length === 0 && (
@@ -218,7 +218,7 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="flex space-x-2">
+      <form onSubmit={handleSubmit} className="flex space-x-2 p-2 border-t border-gray-200">
         <input
           type="text"
           value={inputValue}
@@ -248,7 +248,7 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
 
       {/* Example Questions */}
       {messages.length === 0 && (
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+        <div className="p-3 bg-gray-50 border-t border-gray-200">
           <p className="text-xs text-gray-600 mb-2">Try asking:</p>
           <div className="space-y-1">
             {[
