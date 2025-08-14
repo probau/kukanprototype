@@ -1,223 +1,208 @@
 # Kukan Prototype - AI Room Analysis
 
-A powerful prototype demonstrating AI's ability to understand and reason about 3D room scans using OpenAI's GPT-4o Vision model. The AI analyzes stitched 2D images while users interact with 3D models, creating an immersive room analysis experience.
+A powerful prototype demonstrating AI's ability to understand and reason about 3D room scans using OpenAI's GPT-4o Vision model. The AI analyzes dynamic screenshots of the current 3D view, making it appear as if it understands the 3D scene from any camera angle.
 
-## 🚀 Features
+## 🚀 **Key Features**
 
-- **3D Model Viewer**: Interactive three.js-based viewer for OBJ files
-- **AI Room Analysis**: GPT-4o Vision integration for intelligent room understanding
-- **Scan Management**: Load and switch between multiple room scans
-- **Real-time Chat**: Natural language interface for room queries
-- **Scale Reference**: A4 paper scale integration for accurate measurements
-- **Investor-Ready UI**: Clean, professional interface for presentations
+### **Dynamic 3D Analysis**
+- **Real-time Screenshots**: AI captures and analyzes the current 3D view from your camera perspective
+- **Camera-Aware Responses**: Get intelligent answers based on exactly what you're looking at
+- **Interactive Experience**: Navigate the 3D room and ask questions about what you see
 
-## 🏗️ Architecture
+### **3D Room Viewer**
+- **Interactive Navigation**: Rotate, zoom, and explore 3D room models
+- **OBJ/MTL Support**: Load textured 3D models with materials
+- **Responsive Controls**: Smooth mouse and scroll interactions
+- **Visual Feedback**: Screenshot capture indicators
 
-- **Frontend**: Next.js 14 with React 18
-- **3D Rendering**: Three.js with OBJLoader
-- **AI Integration**: OpenAI GPT-4o Vision API
-- **Styling**: Tailwind CSS for clean, responsive design
-- **Type Safety**: Full TypeScript implementation
+### **AI Chat Interface**
+- **Context-Aware Responses**: AI sees exactly what you see in the 3D view
+- **Markdown Formatting**: Rich text responses with bold, italic, and code formatting
+- **Real-time Analysis**: Instant responses based on current camera perspective
+- **Example Questions**: Pre-built questions to get started
 
-## 📁 Project Structure
+## 🏗️ **Architecture**
+
+### **Frontend**
+- **Next.js 14**: Modern React framework with App Router
+- **Three.js**: 3D rendering and model loading
+- **TypeScript**: Type-safe development
+- **Tailwind CSS**: Modern, responsive styling
+
+### **Backend**
+- **Next.js API Routes**: Serverless API endpoints
+- **OpenAI GPT-4o Vision**: Advanced AI image analysis
+- **Dynamic Screenshots**: Real-time 3D view capture
+
+### **3D Rendering**
+- **OBJ Loader**: 3D model loading
+- **MTL Loader**: Material and texture support
+- **WebGL Renderer**: Hardware-accelerated graphics
+- **Screenshot API**: Canvas-to-image conversion
+
+## 📁 **Project Structure**
 
 ```
-kukan-prototype/
-├── app/                    # Next.js app directory
-│   ├── api/               # API routes
-│   │   ├── scans/         # Scan discovery endpoint
-│   │   └── chat/          # GPT-4o Vision chat endpoint
-│   ├── components/        # React components
-│   ├── globals.css        # Global styles
-│   ├── layout.tsx         # Root layout
-│   └── page.tsx           # Main page
-├── components/             # Reusable components
-├── types/                  # TypeScript type definitions
-├── public/                 # Static assets
-├── scans/                  # Room scan data (create this folder)
-└── package.json            # Dependencies
+Kukan_prototype/
+├── app/
+│   ├── api/
+│   │   ├── chat/route.ts          # AI chat endpoint
+│   │   └── scans/route.ts         # Scan discovery endpoint
+│   ├── globals.css                # Global styles
+│   ├── layout.tsx                 # Root layout
+│   └── page.tsx                   # Main page
+├── components/
+│   ├── ChatInterface.tsx          # AI chat UI
+│   ├── ModelViewer.tsx            # 3D viewer with screenshot capability
+│   └── ScanSelector.tsx           # Room selection dropdown
+├── types/
+│   └── scan.ts                    # TypeScript interfaces
+├── public/
+│   └── scans/                     # Room scan data
+│       └── living-room/
+│           ├── room.obj           # 3D model
+│           ├── room.mtl           # Materials (optional)
+│           ├── room.jpg           # Reference image (legacy)
+│           └── textures/          # Texture files (optional)
+└── package.json                   # Dependencies
 ```
 
-## 🛠️ Setup Instructions
+## 🚀 **Quick Start**
 
-### Prerequisites
-
-- Node.js 18+ 
-- npm or yarn
-- OpenAI API key
-
-### 1. Clone and Install
-
+### **1. Clone and Install**
 ```bash
-git clone <repository-url>
-cd kukan-prototype
+git clone https://github.com/divisionAI-co/kukan.git
+cd kukan
 npm install
 ```
 
-### 2. Environment Configuration
-
+### **2. Environment Setup**
 ```bash
-# Copy the example environment file
-cp env.example .env.local
-
-# Edit .env.local and add your OpenAI API key
-OPENAI_API_KEY=your_actual_api_key_here
+cp .env.example .env
+# Add your OpenAI API key to .env
+OPENAI_API_KEY=your_api_key_here
 ```
 
-### 3. Prepare Scan Data
-
-Create a `scans/` folder in the project root with this structure:
-
+### **3. Add Room Scans**
+Place your room scan folders in `public/scans/`:
 ```
-scans/
+public/scans/
 ├── living-room/
-│   ├── model.obj          # 3D model file
-│   ├── textures/          # Optional texture files
-│   └── room.jpg           # Stitched image for AI analysis
-├── bedroom/
-│   ├── model.obj
-│   └── room.jpg
-└── kitchen/
-    ├── model.obj
-    └── room.jpg
+│   ├── room.obj          # 3D model file
+│   ├── room.mtl          # Materials file (optional)
+│   └── textures/         # Texture folder (optional)
+└── bedroom/
+    ├── room.obj
+    └── room.mtl
 ```
 
-**Important**: The `room.jpg` file should contain a visible A4 paper labeled "A4" for scale reference.
-
-### 4. Run Development Server
-
+### **4. Run Development Server**
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Visit `http://localhost:3000` to see your prototype!
 
-## 🚀 Deployment
+## 🎯 **How It Works**
 
-### Vercel Deployment
+### **1. 3D Navigation**
+- **Load a room scan** from the dropdown
+- **Navigate the 3D view** using mouse and scroll
+- **Position your camera** to see what interests you
 
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Add environment variables in Vercel dashboard:
-   - `OPENAI_API_KEY`: Your OpenAI API key
-4. Deploy!
+### **2. AI Analysis**
+- **Ask a question** about what you see
+- **AI captures screenshot** of your current 3D view
+- **GPT-4o analyzes** the screenshot contextually
+- **Get intelligent response** based on your perspective
 
-### Environment Variables for Production
+### **3. Dynamic Context**
+- **Different angles** = Different AI responses
+- **Current view focus** = Relevant analysis
+- **Interactive exploration** = Continuous learning
 
-Ensure these are set in your production environment:
-- `OPENAI_API_KEY`: Required for GPT-4o Vision API
-- `NODE_ENV`: Set to 'production'
+## 💡 **Example Questions**
 
-## 🎯 Usage
+Try these questions from different camera angles:
 
-### For Investors
+- **"What furniture do you see in this view?"**
+- **"How far is the table from the wall?"**
+- **"What's the size of the rug from this perspective?"**
+- **"Can you see any windows or doors?"**
+- **"What's the layout of this corner?"**
 
-1. **Select a Room**: Choose from available scans in the dropdown
-2. **Explore 3D Model**: Rotate and zoom the 3D room model
-3. **Ask Questions**: Use natural language to query the AI about the room
-4. **Get Insights**: Receive detailed analysis with accurate measurements
+## 🔧 **Technical Details**
 
-### Example Questions
+### **Screenshot Technology**
+- **Canvas Capture**: Uses Three.js renderer's canvas element
+- **Base64 Encoding**: Converts to data URL for API transmission
+- **High Quality**: JPEG format with 90% quality for optimal AI analysis
+- **Real-time**: Captures current view state including camera position
 
-- "How many chairs are in this room?"
-- "What are the dimensions of the table?"
-- "Where could I place a 120cm desk?"
-- "What is the size of the rug, roughly?"
-- "What is hanging on the wall?"
+### **AI Integration**
+- **GPT-4o Vision**: Latest multimodal AI model
+- **High Detail**: Uses 'high' detail setting for accurate analysis
+- **Context Awareness**: System prompts guide AI to focus on visible content
+- **Error Handling**: Graceful fallbacks for API issues
 
-## 🔧 Technical Details
+### **Performance Optimizations**
+- **Preserve Drawing Buffer**: Enables screenshot capability
+- **Efficient Rendering**: 60fps 3D navigation
+- **Smart Loading**: Progressive model loading with fallbacks
+- **Responsive Design**: Adapts to different screen sizes
 
-### Performance Requirements Met
+## 🚀 **Deployment**
 
-- ✅ 3D model load time: <3 seconds
-- ✅ AI response time: <5 seconds  
-- ✅ Smooth 60fps 3D navigation
-- ✅ Reliable presentation environment operation
-
-### API Integration
-
-- **OpenAI GPT-4o Vision**: Processes room images with A4 scale reference
-- **System Message**: Optimized for room analysis and measurement estimation
-- **Error Handling**: Graceful fallbacks for API failures
-
-### 3D Viewer Features
-
-- **OBJ Loading**: Supports standard 3D model format
-- **Interactive Controls**: Mouse-based rotation and zoom
-- **Responsive Design**: Adapts to container size changes
-- **Loading States**: Visual feedback during model loading
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **3D Model Not Loading**
-   - Check file paths in scans folder
-   - Ensure OBJ file is valid
-   - Check browser console for errors
-
-2. **AI Chat Not Working**
-   - Verify OpenAI API key in .env.local
-   - Check API rate limits
-   - Ensure room.jpg exists for selected scan
-
-3. **Performance Issues**
-   - Optimize OBJ file size
-   - Check browser WebGL support
-   - Reduce texture resolution if needed
-
-### Debug Mode
-
-Enable debug logging by setting:
+### **Vercel (Recommended)**
 ```bash
-NODE_ENV=development
+npm run build
+# Deploy to Vercel with automatic builds
 ```
 
-## 📊 Testing
+### **Environment Variables**
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `NODE_ENV`: Set to 'production' for deployment
 
-### Test Cases
+## 🐛 **Troubleshooting**
 
-The application has been tested with:
-- ✅ Multiple room scan formats
-- ✅ Various furniture configurations  
-- ✅ Scale reference accuracy
-- ✅ AI response quality
-- ✅ 3D navigation performance
+### **Common Issues**
 
-### Browser Compatibility
+1. **3D Model Not Loading**
+   - Check file paths in `public/scans/`
+   - Verify OBJ file format
+   - Check browser console for errors
 
-- ✅ Chrome 90+
-- ✅ Firefox 88+
-- ✅ Safari 14+
-- ✅ Edge 90+
+2. **Screenshots Not Working**
+   - Ensure `preserveDrawingBuffer: true` in renderer
+   - Check browser WebGL support
+   - Verify canvas element exists
 
-## 🔒 Security
+3. **AI Responses Not Working**
+   - Check OpenAI API key in `.env`
+   - Verify API quota and billing
+   - Check network connectivity
 
-- API keys stored in environment variables
-- No sensitive data exposed to frontend
-- Input validation on all API endpoints
-- Rate limiting recommended for production
+4. **Performance Issues**
+   - Reduce model complexity
+   - Optimize texture sizes
+   - Check device capabilities
 
-## 📈 Future Enhancements
+## 🔮 **Future Enhancements**
 
-- Texture support for enhanced 3D models
-- Multiple AI model options
-- Export functionality for analysis results
-- Mobile-responsive 3D controls
-- Advanced lighting and materials
+- **Multiple Camera Views**: Save and switch between perspectives
+- **Measurement Tools**: AI-powered distance and size estimation
+- **Furniture Placement**: AI suggestions for room layout
+- **VR Support**: Immersive 3D exploration
+- **Batch Analysis**: Process multiple views simultaneously
 
-## 🤝 Support
-
-For technical support or questions:
-- Check the troubleshooting section
-- Review browser console for errors
-- Verify environment configuration
-- Ensure scan data structure is correct
-
-## 📄 License
+## 📄 **License**
 
 This project is proprietary software developed for investor demonstration purposes.
 
+## 🤝 **Support**
+
+For technical support or questions about the implementation, please refer to the project documentation or contact the development team.
+
 ---
 
-**Built with ❤️ using Next.js, Three.js, and OpenAI GPT-4o Vision**
+**Built with ❤️ for the future of AI-powered 3D analysis**

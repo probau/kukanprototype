@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User } from 'lucide-react'
+import { Send, Bot, User, Camera } from 'lucide-react'
 import { Scan, ChatMessage } from '@/types/scan'
+import { ModelViewerRef } from './ModelViewer'
 
 interface ChatInterfaceProps {
   scan: Scan
+  modelViewerRef: React.RefObject<ModelViewerRef>
 }
 
 // Simple markdown parser for basic formatting
@@ -23,10 +25,11 @@ const parseMarkdown = (text: string): string => {
     .replace(/^- (.+)$/gm, '• $1')
 }
 
-export default function ChatInterface({ scan }: ChatInterfaceProps) {
+export default function ChatInterface({ scan, modelViewerRef }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isTakingScreenshot, setIsTakingScreenshot] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -36,6 +39,28 @@ export default function ChatInterface({ scan }: ChatInterfaceProps) {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  const takeScreenshot = async (): Promise<string | null> => {
+    if (!modelViewerRef.current) {
+      console.error('Model viewer ref not available')
+      return null
+    }
+
+    setIsTakingScreenshot(true)
+    
+    try {
+      // Small delay to ensure the UI updates
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      const screenshot = modelViewerRef.current.takeScreenshot()
+      return screenshot
+    } catch (error) {
+      console.error('Error taking screenshot:', error)
+      return null
+    } finally {
+      setIsTakingScreenshot(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,6 +78,13 @@ export default function ChatInterface({ scan }: ChatInterfaceProps) {
     setIsLoading(true)
 
     try {
+      // Take a screenshot of the current 3D view
+      const screenshot = await takeScreenshot()
+      
+      if (!screenshot) {
+        throw new Error('Failed to capture 3D view screenshot')
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -61,7 +93,7 @@ export default function ChatInterface({ scan }: ChatInterfaceProps) {
         body: JSON.stringify({
           message: userMessage.content,
           scanId: scan.id,
-          roomImagePath: scan.roomImagePath
+          screenshot: screenshot // Send the screenshot instead of roomImagePath
         }),
       })
 
@@ -122,7 +154,11 @@ export default function ChatInterface({ scan }: ChatInterfaceProps) {
           <div className="text-center text-gray-500 py-8">
             <Bot className="h-8 w-8 mx-auto mb-2 text-gray-400" />
             <p className="text-sm">Ask me anything about this room!</p>
-            <p className="text-xs mt-1">I can analyze furniture, dimensions, and layout</p>
+            <p className="text-xs mt-1">I can analyze what you see from your current view</p>
+            <div className="mt-3 flex items-center justify-center text-xs text-gray-400">
+              <Camera className="h-3 w-3 mr-1" />
+              <span>I'll capture your current 3D view</span>
+            </div>
           </div>
         )}
         
@@ -160,10 +196,18 @@ export default function ChatInterface({ scan }: ChatInterfaceProps) {
             <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg">
               <div className="flex items-center space-x-2">
                 <Bot className="h-4 w-4" />
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="flex items-center space-x-2">
+                  {isTakingScreenshot && (
+                    <div className="flex items-center text-xs text-gray-600">
+                      <Camera className="h-3 w-3 mr-1 animate-pulse" />
+                      <span>Capturing view...</span>
+                    </div>
+                  )}
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -179,16 +223,26 @@ export default function ChatInterface({ scan }: ChatInterfaceProps) {
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Ask a question about this room..."
+          placeholder="Ask about what you see in the 3D view..."
           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
           disabled={isLoading}
         />
         <button
           type="submit"
           disabled={!inputValue.trim() || isLoading}
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
         >
-          <Send className="h-4 w-4" />
+          {isTakingScreenshot ? (
+            <>
+              <Camera className="h-4 w-4 animate-pulse" />
+              <span>Capturing...</span>
+            </>
+          ) : (
+            <>
+              <Send className="h-4 w-4" />
+              <span>Ask</span>
+            </>
+          )}
         </button>
       </form>
 
@@ -198,10 +252,10 @@ export default function ChatInterface({ scan }: ChatInterfaceProps) {
           <p className="text-xs text-gray-600 mb-2">Try asking:</p>
           <div className="space-y-1">
             {[
-              "How many chairs are in this room?",
-              "What are the dimensions of the table?",
-              "Where could I place a 120cm desk?",
-              "What is the size of the rug, roughly?"
+              "What furniture do you see in this view?",
+              "How far is the table from the wall?",
+              "What's the size of the rug in this perspective?",
+              "Can you see any windows or doors?"
             ].map((question, index) => (
               <button
                 key={index}

@@ -22,74 +22,91 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { message, scanId, roomImagePath } = await request.json()
+    const { message, scanId, screenshot } = await request.json()
 
-    if (!message || !scanId || !roomImagePath) {
+    if (!message || !scanId || !screenshot) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: message, scanId, or screenshot' },
         { status: 400 }
       )
     }
 
-    // Read the room image file
-    const imagePath = path.join(process.cwd(), 'public', roomImagePath)
-    const imageBuffer = await fs.readFile(imagePath)
-    const base64Image = imageBuffer.toString('base64')
+    // Validate screenshot format (should be base64 data URL)
+    if (!screenshot.startsWith('data:image/')) {
+      return NextResponse.json(
+        { error: 'Invalid screenshot format. Expected base64 data URL.' },
+        { status: 400 }
+      )
+    }
 
-    // Prepare the system message
-    const systemMessage = `This is an image of a real indoor space. A standard A4 sheet of paper (21cm x 29.7cm) is taped to the wall and labeled "A4". Use it as a scale reference to estimate the size and layout of objects or spaces in your response.
+    // Extract the base64 data from the data URL
+    const base64Data = screenshot.split(',')[1]
+    
+    if (!base64Data) {
+      return NextResponse.json(
+        { error: 'Invalid screenshot data' },
+        { status: 400 }
+      )
+    }
 
-Please analyze the room and provide detailed, accurate information about:
-- Furniture and objects present
-- Approximate dimensions using the A4 paper as reference
-- Spatial relationships and layout
-- Potential placement suggestions for new furniture
-- Any notable architectural features
+    // Convert base64 to buffer for OpenAI API
+    const imageBuffer = Buffer.from(base64Data, 'base64')
 
-Be specific about measurements and use the A4 paper scale to provide realistic estimates.`
+    // Create the system message for context
+    const systemMessage = `This is a screenshot of a 3D room view from a user's current camera perspective. The user is asking questions about what they can see from their current view. 
 
-    // Call OpenAI GPT-4o Vision API
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+Please analyze the visual content and provide helpful, accurate responses about:
+- Furniture and objects visible in the current view
+- Spatial relationships and distances
+- Dimensions and measurements (if visible)
+- Layout and positioning from this perspective
+- Any architectural features visible
+
+Respond naturally and conversationally, focusing on what's actually visible in the current screenshot.`
+
+    // Send to OpenAI GPT-4o Vision
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
       messages: [
         {
-          role: "system",
+          role: 'system',
           content: systemMessage
         },
         {
-          role: "user",
+          role: 'user',
           content: [
             {
-              type: "text",
+              type: 'text',
               text: message
             },
             {
-              type: "image_url",
+              type: 'image_url',
               image_url: {
-                url: `data:image/jpeg;base64,${base64Image}`,
-                detail: "high"
+                url: `data:image/jpeg;base64,${base64Data}`,
+                detail: 'high'
               }
             }
           ]
         }
       ],
       max_tokens: 1000,
-      temperature: 0.7,
+      temperature: 0.7
     })
 
-    const aiResponse = response.choices[0]?.message?.content || 'No response received'
+    const response = completion.choices[0]?.message?.content || 'Sorry, I could not analyze the room view.'
 
-    return NextResponse.json({ response: aiResponse })
-  } catch (error) {
+    return NextResponse.json({ response })
+
+  } catch (error: any) {
     console.error('Chat API error:', error)
     
-    if (error instanceof Error && error.message.includes('API key')) {
+    if (error.code === 'insufficient_quota') {
       return NextResponse.json(
-        { error: 'OpenAI API key not configured' },
-        { status: 500 }
+        { error: 'OpenAI API quota exceeded. Please check your billing and usage limits.' },
+        { status: 429 }
       )
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to process chat request' },
       { status: 500 }

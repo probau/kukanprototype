@@ -1,16 +1,21 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import * as THREE from 'three'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js'
 import { Scan } from '@/types/scan'
+import { Camera } from 'lucide-react'
 
 interface ModelViewerProps {
   scan: Scan
 }
 
-export default function ModelViewer({ scan }: ModelViewerProps) {
+export interface ModelViewerRef {
+  takeScreenshot: () => string | null
+}
+
+export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer({ scan }, ref) {
   const mountRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
@@ -19,7 +24,37 @@ export default function ModelViewer({ scan }: ModelViewerProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showGrid, setShowGrid] = useState(true)
+  const [isCapturing, setIsCapturing] = useState(false)
   const gridRef = useRef<THREE.GridHelper | null>(null)
+
+  // Expose screenshot method to parent component
+  useImperativeHandle(ref, () => ({
+    takeScreenshot: () => {
+      if (!rendererRef.current || !sceneRef.current || !cameraRef.current) {
+        return null
+      }
+
+      try {
+        setIsCapturing(true)
+        
+        // Render the current scene to ensure it's up to date
+        rendererRef.current.render(sceneRef.current, cameraRef.current)
+        
+        // Get the canvas data as a base64 string
+        const canvas = rendererRef.current.domElement
+        const dataURL = canvas.toDataURL('image/jpeg', 0.9)
+        
+        // Reset capturing state after a short delay
+        setTimeout(() => setIsCapturing(false), 500)
+        
+        return dataURL
+      } catch (error) {
+        console.error('Error taking screenshot:', error)
+        setIsCapturing(false)
+        return null
+      }
+    }
+  }))
 
   useEffect(() => {
     if (!mountRef.current) return
@@ -41,7 +76,7 @@ export default function ModelViewer({ scan }: ModelViewerProps) {
     cameraRef.current = camera
 
     // Renderer setup
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
     renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight)
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
@@ -262,6 +297,16 @@ export default function ModelViewer({ scan }: ModelViewerProps) {
           </div>
         </div>
       )}
+
+      {/* Screenshot capture indicator */}
+      {isCapturing && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 pointer-events-none">
+          <div className="bg-white bg-opacity-90 rounded-lg px-4 py-3 shadow-lg flex items-center space-x-3">
+            <Camera className="h-5 w-5 text-primary animate-pulse" />
+            <span className="text-sm font-medium text-gray-800">Capturing 3D View...</span>
+          </div>
+        </div>
+      )}
       
       {/* Controls hint */}
       <div className="absolute bottom-2 left-2 text-xs text-gray-500 bg-white bg-opacity-75 px-2 py-1 rounded">
@@ -269,4 +314,4 @@ export default function ModelViewer({ scan }: ModelViewerProps) {
       </div>
     </div>
   )
-}
+})
