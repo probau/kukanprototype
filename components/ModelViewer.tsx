@@ -171,7 +171,10 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
 
     // Grid helper - will be repositioned after model loads
     const gridHelper = new THREE.GridHelper(10, 10)
-    scene.add(gridHelper)
+    gridRef.current = gridHelper
+    if (showGrid) {
+      scene.add(gridHelper)
+    }
 
     // Load MTL materials first, then OBJ model
     const mtlLoader = new MTLLoader()
@@ -221,20 +224,29 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           // Center the model at origin
           object.position.sub(center)
           
-          // Reposition grid to match model center
-          gridHelper.position.copy(object.position)
+          // Reposition and resize the existing grid to match model
+          if (gridRef.current) {
+            // Remove old grid from scene
+            scene.remove(gridRef.current)
+          }
+          
+          // Create new grid with appropriate size
+          const gridSize = Math.max(size.x, size.z) * 5 / Math.max(size.x, size.y, size.z)
+          const newGridHelper = new THREE.GridHelper(gridSize, 20)
+          newGridHelper.position.copy(object.position)
+          
+          // Update the grid reference
+          gridRef.current = newGridHelper
+          
+          // Add to scene only if grid should be visible
+          if (showGrid) {
+            scene.add(newGridHelper)
+          }
           
           // Scale to fit in view
           const maxDim = Math.max(size.x, size.y, size.z)
           const scale = 5 / maxDim
           object.scale.setScalar(scale)
-          
-          // Adjust grid size based on model
-          const gridSize = Math.max(size.x, size.z) * scale
-          scene.remove(gridHelper)
-          const newGridHelper = new THREE.GridHelper(gridSize, 20)
-          newGridHelper.position.copy(object.position)
-          scene.add(newGridHelper)
           
           // Add to scene
           scene.add(object)
@@ -360,6 +372,17 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     }
   }, [lightingMode])
 
+  // Handle grid visibility changes
+  useEffect(() => {
+    if (gridRef.current && sceneRef.current) {
+      if (showGrid) {
+        sceneRef.current.add(gridRef.current)
+      } else {
+        sceneRef.current.remove(gridRef.current)
+      }
+    }
+  }, [showGrid])
+
   return (
     <div className="relative w-full h-full">
       <div ref={mountRef} className="w-full h-full" />
@@ -396,64 +419,73 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         Click + drag to rotate • Scroll to zoom
       </div>
 
-      {/* Grid Toggle Button */}
-      <div className="absolute top-2 right-32">
-        <button
-          onClick={() => setShowGrid(!showGrid)}
-          className={`p-2 rounded-lg shadow-lg transition-all ${
-            showGrid 
-              ? 'bg-blue-600 text-white hover:bg-blue-700' 
-              : 'bg-gray-600 text-white hover:bg-gray-700'
-          }`}
-          title={showGrid ? 'Hide Grid' : 'Show Grid'}
-        >
-          <Grid3X3 className="h-5 w-5" />
-        </button>
-      </div>
+      {/* Combined Controls Panel */}
+      <div className="absolute top-2 right-2 bg-white bg-opacity-90 rounded-lg shadow-lg p-3">
+        <div className="flex items-center space-x-4">
+          {/* Grid Toggle */}
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-gray-600 font-medium">Grid</span>
+            <button
+              onClick={() => setShowGrid(!showGrid)}
+              className={`p-2 rounded-lg transition-all ${
+                showGrid 
+                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                  : 'bg-gray-600 text-white hover:bg-gray-700'
+              }`}
+              title={showGrid ? 'Hide Grid' : 'Show Grid'}
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </button>
+          </div>
 
-      {/* Lighting Controls */}
-      <div className="absolute top-2 right-2 bg-white bg-opacity-90 rounded-lg shadow-lg p-2">
-        <div className="text-xs text-gray-600 mb-1 font-medium">Lighting</div>
-        <div className="flex space-x-1">
-          <button
-            onClick={() => {
-              setLightingMode('normal')
-              updateLighting('normal')
-            }}
-            className={`px-2 py-1 text-xs rounded ${
-              lightingMode === 'normal' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Normal
-          </button>
-          <button
-            onClick={() => {
-              setLightingMode('bright')
-              updateLighting('bright')
-            }}
-            className={`px-2 py-1 text-xs rounded ${
-              lightingMode === 'bright' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Bright
-          </button>
-          <button
-            onClick={() => {
-              setLightingMode('studio')
-              updateLighting('studio')
-            }}
-            className={`px-2 py-1 text-xs rounded ${
-              lightingMode === 'studio' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Studio
-          </button>
+          {/* Divider */}
+          <div className="w-px h-8 bg-gray-300"></div>
+
+          {/* Lighting Controls */}
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-gray-600 font-medium">Lighting</span>
+            <div className="flex space-x-1">
+              <button
+                onClick={() => {
+                  setLightingMode('normal')
+                  updateLighting('normal')
+                }}
+                className={`px-2 py-1 text-xs rounded ${
+                  lightingMode === 'normal' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Normal
+              </button>
+              <button
+                onClick={() => {
+                  setLightingMode('bright')
+                  updateLighting('bright')
+                }}
+                className={`px-2 py-1 text-xs rounded ${
+                  lightingMode === 'bright' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Bright
+              </button>
+              <button
+                onClick={() => {
+                  setLightingMode('studio')
+                  updateLighting('studio')
+                }}
+                className={`px-2 py-1 text-xs rounded ${
+                  lightingMode === 'studio' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Studio
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
