@@ -359,9 +359,10 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           controlsRef.current.minDistance = 0.1
           controlsRef.current.maxDistance = finalMaxSize * 5 // Increased for better navigation
           controlsRef.current.enablePan = true
-          controlsRef.current.screenSpacePanning = true
+          controlsRef.current.screenSpacePanning = false // Standard panning behavior
           controlsRef.current.enableZoom = true
           controlsRef.current.enableRotate = true
+          controlsRef.current.zoomSpeed = 1.0
         }
         
         console.log('Camera positioned INSIDE small local OBJ model:', {
@@ -564,7 +565,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           controlsRef.current.minDistance = 0.1 // Very close since we're inside
           controlsRef.current.maxDistance = finalMaxSize * 0.8 // Increased from 0.4 to 0.8 for more panning range
           controlsRef.current.enablePan = true // Enable panning for exploration
-          controlsRef.current.screenSpacePanning = true // Better panning behavior
+          controlsRef.current.screenSpacePanning = false // Standard panning behavior
+          controlsRef.current.zoomSpeed = 1.0
         }
         
         console.log('Camera positioned INSIDE small GLTF model:', {
@@ -671,13 +673,24 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.05
-    controls.screenSpacePanning = true
+    controls.screenSpacePanning = false // Changed to false for standard panning
     controls.minDistance = 0.1
     controls.maxDistance = 1000
     controls.maxPolarAngle = Math.PI
     controls.enablePan = true
     controls.enableZoom = true
     controls.enableRotate = true
+    
+    // Set mouse button behavior
+    controls.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,    // Left click = rotate
+      MIDDLE: THREE.MOUSE.DOLLY,   // Middle click = zoom
+      RIGHT: THREE.MOUSE.PAN       // Right click = pan
+    }
+    
+    // Set zoom speed
+    controls.zoomSpeed = 1.0
+    
     controlsRef.current = controls
 
     // Create lights group for easy management
@@ -986,7 +999,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         controls.minDistance = 0.1 // Very close since we're inside
         controls.maxDistance = finalMaxSize * 0.8 // Increased from 0.4 to 0.8 for more panning range
         controls.enablePan = true // Enable panning for exploration
-        controls.screenSpacePanning = true // Better panning behavior
+        controls.screenSpacePanning = false // Standard panning behavior
+        controls.zoomSpeed = 1.0
         
         console.log('Camera positioned INSIDE small GLB/GLTF model:', {
           originalMaxSize,
@@ -1014,6 +1028,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         controls.enablePan = true
         controls.enableZoom = true
         controls.enableRotate = true
+        controls.screenSpacePanning = false // Standard panning behavior
+        controls.zoomSpeed = 1.0
         
         console.log('Camera positioned for large GLB/GLTF model:', {
           originalMaxSize,
