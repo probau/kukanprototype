@@ -146,7 +146,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         (gltf: any) => {
           console.log('Local GLB/GLTF loaded successfully:', gltf)
           loadGLTFModel(gltf)
-          setIsUploading(false)
+          // Don't set setIsUploading(false) here - let loadGLTFModel handle loading state
           // Clean up object URL
           URL.revokeObjectURL(objectURL)
         },
@@ -171,7 +171,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         (object: any) => {
           console.log('Local OBJ loaded successfully:', object)
           loadOBJModelFromObject(object)
-          setIsUploading(false)
+          // Don't set setIsUploading(false) here - let loadOBJModelFromObject handle loading state
           URL.revokeObjectURL(objectURL)
         },
         (progress: any) => {
@@ -282,7 +282,10 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     if (sceneRef.current) {
       sceneRef.current.add(object)
     }
+    
+    // Set loading to false AFTER the model is added to the scene
     setIsLoading(false)
+    setIsUploading(false)
 
     // Calculate final model bounds AFTER scaling and positioning
     const finalBox = new THREE.Box3().setFromObject(object)
@@ -482,6 +485,10 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     if (sceneRef.current) {
       sceneRef.current.add(object)
     }
+    
+    // Set loading to false AFTER the model is added to the scene
+    setIsLoading(false)
+    setIsUploading(false)
     
     // Calculate final model bounds AFTER scaling and positioning
     const finalBox = new THREE.Box3().setFromObject(object)
@@ -710,7 +717,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         scan.modelPath,
         (gltf) => {
           loadGLTFModel(gltf)
-          setIsLoading(false)
+          // Don't set isLoading to false here - let loadGLTFModel handle it after rendering
         },
         (progress) => {
           // Progress callback
@@ -731,7 +738,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           // Server model - MTL is in the same folder as OBJ
           const folderPath = scan.modelPath.substring(0, scan.modelPath.lastIndexOf('/'))
           const mtlPath = `${folderPath}/model.mtl`
-          mtlLoader.setPath('/') // Set root path since we're using absolute paths
+          
+          console.log('Loading MTL file from:', mtlPath)
           
           mtlLoader.load(
             mtlPath,
@@ -743,7 +751,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                 scan.modelPath,
                 (object) => {
                   loadOBJModelFromObject(object)
-                  setIsLoading(false)
+                  // Don't set isLoading to false here - let loadOBJModelFromObject handle it after rendering
                 },
                 (progress) => {
                   // Progress callback
@@ -765,7 +773,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                 scan.modelPath,
                 (object) => {
                   loadOBJModelFromObject(object)
-                  setIsLoading(false)
+                  // Don't set isLoading to false here - let loadOBJModelFromObject handle it after rendering
                 },
                 (progress) => {
                   // Progress callback
@@ -785,7 +793,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             scan.modelPath,
             (object) => {
               loadOBJModelFromObject(object)
-              setIsLoading(false)
+              // Don't set isLoading to false here - let loadOBJModelFromObject handle it after rendering
             },
             (progress) => {
               // Progress callback
@@ -803,7 +811,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           scan.modelPath,
           (object) => {
             loadOBJModelFromObject(object)
-            setIsLoading(false)
+            // Don't set isLoading to false here - let loadOBJModelFromObject handle it after rendering
           },
           (progress) => {
             // Progress callback
