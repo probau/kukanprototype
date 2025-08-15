@@ -5,11 +5,15 @@ import ScanSelector from '@/components/ScanSelector'
 import ModelViewer, { ModelViewerRef } from '@/components/ModelViewer'
 import ChatInterface from '@/components/ChatInterface'
 import { Scan } from '@/types/scan'
+import { Upload } from 'lucide-react'
 
 export default function Home() {
   const [scans, setScans] = useState<Scan[]>([])
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const modelViewerRef = useRef<ModelViewerRef>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const fetchScans = async () => {
@@ -29,6 +33,72 @@ export default function Home() {
 
     fetchScans()
   }, [selectedScan])
+
+  // File upload handling
+  const handleFileUpload = (file: File) => {
+    if (!file) return
+
+    // Validate file type
+    const validTypes = ['.obj', '.glb', '.gltf']
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase()
+    
+    if (!validTypes.includes(fileExtension)) {
+      setUploadError(`Unsupported file type: ${fileExtension}. Please use OBJ, GLB, or GLTF files.`)
+      return
+    }
+
+    // Validate file size (100MB limit for local files)
+    if (file.size > 100 * 1024 * 1024) {
+      setUploadError('File too large. Please use files smaller than 100MB.')
+      return
+    }
+
+    setIsUploading(true)
+    setUploadError(null)
+
+    // Create a new scan entry for the uploaded file
+    const newScan: Scan = {
+      id: `uploaded-${Date.now()}`,
+      name: `Uploaded: ${file.name}`,
+      folder: 'uploaded',
+      modelPath: URL.createObjectURL(file),
+      fileFormat: fileExtension === '.glb' ? 'glb' : fileExtension === '.gltf' ? 'gltf' : 'obj',
+      hasMtl: false
+    }
+
+    // Add to scans list and select it
+    setScans(prevScans => [...prevScans, newScan])
+    setSelectedScan(newScan)
+    setIsUploading(false)
+
+    console.log('File uploaded successfully:', { fileName: file.name, fileSize: file.size, fileExtension })
+  }
+
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      handleFileUpload(file)
+    }
+    // Reset input value to allow re-uploading the same file
+    if (event.target) {
+      event.target.value = ''
+    }
+  }
+
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    
+    const files = event.dataTransfer.files
+    if (files.length > 0) {
+      handleFileUpload(files[0])
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -50,13 +120,57 @@ export default function Home() {
                 selectedScan={selectedScan}
                 onScanSelect={setSelectedScan}
               />
+              
+              {/* File Upload Button */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center space-x-2"
+                  title="Upload 3D Model"
+                  disabled={isUploading}
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Upload Model</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".obj,.glb,.gltf"
+                  onChange={handleFileInputChange}
+                  className="hidden"
+                />
+              </div>
             </div>
           </div>
         </div>
       </header>
 
+      {/* Upload Error Display */}
+      {uploadError && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="font-medium">Upload Error:</span>
+                <span>{uploadError}</span>
+              </div>
+              <button
+                onClick={() => setUploadError(null)}
+                className="text-red-500 hover:text-red-700 text-lg font-bold"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main 
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         {selectedScan ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-200px)]">
             {/* 3D Model Viewer */}

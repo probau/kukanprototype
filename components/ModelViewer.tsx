@@ -1041,213 +1041,166 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       {/* Combined Controls Panel */}
       <div className="absolute top-2 right-2 bg-white bg-opacity-90 rounded-lg shadow-lg p-3">
         <div className="flex items-center space-x-4">
-          {/* File Upload Button */}
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-2 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
-              title="Upload 3D Model"
-              disabled={isUploading}
-            >
-              <Upload className="h-4 w-4" />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".obj,.glb,.gltf"
-              onChange={handleFileInputChange}
-              className="hidden"
-            />
-          </div>
+           {/* Reset Camera Button */}
+           <div className="flex items-center space-x-2">
+             <button
+               onClick={() => {
+                 if (controlsRef.current && cameraRef.current) {
+                   // Reset to optimal viewing position
+                   const camera = cameraRef.current
+                   const controls = controlsRef.current
+                   
+                   // Get current model bounds to calculate optimal position
+                   const scene = sceneRef.current
+                   if (scene) {
+                     // Find the 3D model object (skip lights, grid, etc.)
+                     let modelObject = null
+                     scene.traverse((child) => {
+                       if (child.type === 'Group' && child !== lightsRef.current && child !== gridRef.current) {
+                         modelObject = child
+                       }
+                     })
+                     
+                     if (modelObject) {
+                       const box = new THREE.Box3().setFromObject(modelObject)
+                       const size = box.getSize(new THREE.Vector3())
+                       const center = box.getCenter(new THREE.Vector3())
+                       const maxSize = Math.max(size.x, size.y, size.z)
+                       
+                       // Check if this is a small model (original size < 3.0)
+                       // We need to estimate the original size from the current scaled size
+                       const estimatedOriginalSize = maxSize / 6.0 // Rough estimate based on typical scaling
+                       
+                       if (estimatedOriginalSize < 3.0) {
+                         // Small model - position camera INSIDE
+                         camera.position.copy(center)
+                         
+                         // Adjust FOV for better visibility from inside
+                         const aspectRatio = mountRef.current!.clientWidth / mountRef.current!.clientHeight
+                         const requiredFOV = Math.atan2(maxSize / 2, maxSize * 0.1) * 2 * (180 / Math.PI)
+                         camera.fov = Math.min(requiredFOV, 120)
+                         camera.updateProjectionMatrix()
+                         
+                         // Update controls - stay inside model bounds
+                         controls.target.copy(center)
+                         controls.minDistance = 0.1
+                         controls.maxDistance = maxSize * 0.8
+                         controls.enablePan = true
+                         controls.screenSpacePanning = true
+                         
+                         console.log('Reset camera INSIDE small model:', {
+                           estimatedOriginalSize,
+                           maxSize,
+                           position: camera.position.toArray(),
+                           target: center.toArray(),
+                           fov: camera.fov
+                         })
+                       } else {
+                         // Large model - use traditional outside positioning
+                         const cameraDistance = maxSize * 2.0
+                         
+                         camera.position.set(
+                           center.x + cameraDistance,
+                           center.y + cameraDistance * 0.8,
+                           center.z + cameraDistance
+                         )
+                         camera.lookAt(center)
+                         camera.updateProjectionMatrix()
+                         
+                         // Update controls
+                         controls.target.copy(center)
+                         controls.minDistance = maxSize * 0.3
+                         controls.maxDistance = maxSize * 8
+                         
+                         console.log('Reset camera for large model:', {
+                           maxSize,
+                           cameraDistance,
+                           position: camera.position.toArray(),
+                           target: center.toArray()
+                         })
+                       }
+                       
+                       controls.update()
+                     }
+                   }
+                 }
+               }}
+               className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+               title="Reset Camera View"
+             >
+               Reset View
+             </button>
+           </div>
 
-          {/* Divider */}
-          <div className="w-px h-8 bg-gray-300"></div>
+           {/* Divider */}
+           <div className="w-px h-8 bg-gray-300"></div>
 
-          {/* Reset Camera Button */}
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => {
-                if (controlsRef.current && cameraRef.current) {
-                  // Reset to optimal viewing position
-                  const camera = cameraRef.current
-                  const controls = controlsRef.current
-                  
-                  // Get current model bounds to calculate optimal position
-                  const scene = sceneRef.current
-                  if (scene) {
-                    // Find the 3D model object (skip lights, grid, etc.)
-                    let modelObject = null
-                    scene.traverse((child) => {
-                      if (child.type === 'Group' && child !== lightsRef.current && child !== gridRef.current) {
-                        modelObject = child
-                      }
-                    })
-                    
-                    if (modelObject) {
-                      const box = new THREE.Box3().setFromObject(modelObject)
-                      const size = box.getSize(new THREE.Vector3())
-                      const center = box.getCenter(new THREE.Vector3())
-                      const maxSize = Math.max(size.x, size.y, size.z)
-                      
-                      // Check if this is a small model (original size < 3.0)
-                      // We need to estimate the original size from the current scaled size
-                      const estimatedOriginalSize = maxSize / 6.0 // Rough estimate based on typical scaling
-                      
-                      if (estimatedOriginalSize < 3.0) {
-                        // Small model - position camera INSIDE
-                        camera.position.copy(center)
-                        
-                        // Adjust FOV for better visibility from inside
-                        const aspectRatio = mountRef.current!.clientWidth / mountRef.current!.clientHeight
-                        const requiredFOV = Math.atan2(maxSize / 2, maxSize * 0.1) * 2 * (180 / Math.PI)
-                        camera.fov = Math.min(requiredFOV, 120)
-                        camera.updateProjectionMatrix()
-                        
-                        // Update controls - stay inside model bounds
-                        controls.target.copy(center)
-                        controls.minDistance = 0.1
-                        controls.maxDistance = maxSize * 0.8
-                        controls.enablePan = true
-                        controls.screenSpacePanning = true
-                        
-                        console.log('Reset camera INSIDE small model:', {
-                          estimatedOriginalSize,
-                          maxSize,
-                          position: camera.position.toArray(),
-                          target: center.toArray(),
-                          fov: camera.fov
-                        })
-                      } else {
-                        // Large model - use traditional outside positioning
-                        const cameraDistance = maxSize * 2.0
-                        
-                        camera.position.set(
-                          center.x + cameraDistance,
-                          center.y + cameraDistance * 0.8,
-                          center.z + cameraDistance
-                        )
-                        camera.lookAt(center)
-                        camera.updateProjectionMatrix()
-                        
-                        // Update controls
-                        controls.target.copy(center)
-                        controls.minDistance = maxSize * 0.3
-                        controls.maxDistance = maxSize * 8
-                        
-                        console.log('Reset camera for large model:', {
-                          maxSize,
-                          cameraDistance,
-                          position: camera.position.toArray(),
-                          target: center.toArray()
-                        })
-                      }
-                      
-                      controls.update()
-                    }
-                  }
-                }
-              }}
-              className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
-              title="Reset Camera View"
-            >
-              Reset View
-            </button>
-          </div>
+           {/* Grid Toggle */}
+           <div className="flex items-center space-x-2">
+             <span className="text-xs text-gray-600 font-medium">Grid</span>
+             <button
+               onClick={() => setShowGrid(!showGrid)}
+               className={`p-2 rounded-lg transition-all ${
+                 showGrid 
+                   ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                   : 'bg-gray-600 text-white hover:bg-gray-700'
+               }`}
+               title={showGrid ? 'Hide Grid' : 'Show Grid'}
+             >
+               <Grid3X3 className="h-4 w-4" />
+             </button>
+           </div>
 
-          {/* Divider */}
-          <div className="w-px h-8 bg-gray-300"></div>
+           {/* Divider */}
+           <div className="w-px h-8 bg-gray-300"></div>
 
-          {/* Grid Toggle */}
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-gray-600 font-medium">Grid</span>
-            <button
-              onClick={() => setShowGrid(!showGrid)}
-              className={`p-2 rounded-lg transition-all ${
-                showGrid 
-                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                  : 'bg-gray-600 text-white hover:bg-gray-700'
-              }`}
-              title={showGrid ? 'Hide Grid' : 'Show Grid'}
-            >
-              <Grid3X3 className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="w-px h-8 bg-gray-300"></div>
-
-          {/* Lighting Controls */}
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-gray-600 font-medium">Lighting</span>
-            <div className="flex space-x-1">
-              <button
-                onClick={() => {
-                  setLightingMode('normal')
-                  updateLighting('normal')
-                }}
-                className={`px-2 py-1 text-xs rounded ${
-                  lightingMode === 'normal' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                Normal
-              </button>
-              <button
-                onClick={() => {
-                  setLightingMode('bright')
-                  updateLighting('bright')
-                }}
-                className={`px-2 py-1 text-xs rounded ${
-                  lightingMode === 'bright' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                Bright
-              </button>
-              <button
-                onClick={() => {
-                  setLightingMode('studio')
-                  updateLighting('studio')
-                }}
-                className={`px-2 py-1 text-xs rounded ${
-                  lightingMode === 'studio' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                Studio
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* File Upload Error Display */}
-      {uploadError && (
-        <div className="absolute top-20 right-2 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded max-w-xs">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium">Upload Error:</span>
-            <button
-              onClick={() => setUploadError(null)}
-              className="text-red-500 hover:text-red-700 text-lg font-bold"
-            >
-              ×
-            </button>
-          </div>
-          <p className="text-xs mt-1">{uploadError}</p>
-        </div>
-      )}
-
-      {/* Drag and Drop Zone */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
-        <div className="absolute inset-0 border-2 border-dashed border-transparent transition-colors duration-200 group-hover:border-blue-400" />
-      </div>
-    </div>
-  )
+           {/* Lighting Controls */}
+           <div className="flex items-center space-x-2">
+             <span className="text-xs text-gray-600 font-medium">Lighting</span>
+             <div className="flex space-x-1">
+               <button
+                 onClick={() => {
+                   setLightingMode('normal')
+                   updateLighting('normal')
+                 }}
+                 className={`px-2 py-1 text-xs rounded ${
+                   lightingMode === 'normal' 
+                     ? 'bg-blue-500 text-white' 
+                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                 }`}
+               >
+                 Normal
+               </button>
+               <button
+                 onClick={() => {
+                   setLightingMode('bright')
+                   updateLighting('bright')
+                 }}
+                 className={`px-2 py-1 text-xs rounded ${
+                   lightingMode === 'bright' 
+                     ? 'bg-blue-500 text-white' 
+                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                 }`}
+               >
+                 Bright
+               </button>
+               <button
+                 onClick={() => {
+                   setLightingMode('studio')
+                   updateLighting('studio')
+                 }}
+                 className={`px-2 py-1 text-xs rounded ${
+                   lightingMode === 'studio' 
+                     ? 'bg-blue-500 text-white' 
+                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                 }`}
+               >
+                 Studio
+               </button>
+             </div>
+           </div>
+         </div>
+       </div>
+     </div>
+   )
 })
