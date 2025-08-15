@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { promises as fs } from 'fs'
-import path from 'path'
 
 // Initialize OpenAI client only if API key is available
 let openai: OpenAI | null = null
@@ -11,6 +9,10 @@ if (process.env.OPENAI_API_KEY) {
     apiKey: process.env.OPENAI_API_KEY,
   })
 }
+
+// Configure API route
+export const maxDuration = 60 // 60 seconds timeout
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +24,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { message, scanId, screenshot } = await request.json()
+    // Get request body with size validation
+    let body: any
+    try {
+      const text = await request.text()
+      
+      // Check payload size (50MB limit)
+      const payloadSizeMB = Buffer.byteLength(text, 'utf8') / (1024 * 1024)
+      if (payloadSizeMB > 50) {
+        return NextResponse.json(
+          { error: `Payload too large: ${payloadSizeMB.toFixed(2)}MB. Maximum allowed: 50MB.` },
+          { status: 413 }
+        )
+      }
+      
+      body = JSON.parse(text)
+    } catch (parseError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON payload' },
+        { status: 400 }
+      )
+    }
+
+    const { message, scanId, screenshot } = body
 
     if (!message || !scanId || !screenshot) {
       return NextResponse.json(
@@ -46,6 +70,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid screenshot data' },
         { status: 400 }
+      )
+    }
+
+    // Check screenshot size (base64 is ~33% larger than binary)
+    const screenshotSizeMB = (base64Data.length * 0.75) / (1024 * 1024)
+    if (screenshotSizeMB > 20) {
+      return NextResponse.json(
+        { error: `Screenshot too large: ${screenshotSizeMB.toFixed(2)}MB. Please reduce image quality or resolution.` },
+        { status: 413 }
       )
     }
 
@@ -131,6 +164,7 @@ Respond in an engaging, educational manner with specific details, measurements, 
   } catch (error: any) {
     console.error('Chat API error:', error)
     
+    // Handle specific OpenAI errors
     if (error.code === 'insufficient_quota') {
       return NextResponse.json(
         { error: 'OpenAI API quota exceeded. Please check your billing and usage limits.' },
@@ -138,8 +172,24 @@ Respond in an engaging, educational manner with specific details, measurements, 
       )
     }
 
+    // Handle timeout errors
+    if (error.code === 'ECONNRESET' || error.message?.includes('timeout')) {
+      return NextResponse.json(
+        { error: 'Request timed out. Please try again with a smaller image or check your connection.' },
+        { status: 408 }
+      )
+    }
+
+    // Handle payload size errors
+    if (error.status === 413 || error.message?.includes('too large')) {
+      return NextResponse.json(
+        { error: 'Image too large. Please reduce the screenshot quality or resolution before sending.' },
+        { status: 413 }
+      )
+    }
+
     return NextResponse.json(
-      { error: 'Failed to process chat request' },
+      { error: 'Failed to process chat request. Please try again.' },
       { status: 500 }
     )
   }

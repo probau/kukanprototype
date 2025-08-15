@@ -53,13 +53,70 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
       await new Promise(resolve => setTimeout(resolve, 100))
       
       const screenshot = modelViewerRef.current.takeScreenshot()
-      return screenshot
+      
+      if (!screenshot) {
+        return null
+      }
+      
+      // Compress the screenshot further if it's still too large
+      const compressedScreenshot = await compressScreenshot(screenshot)
+      return compressedScreenshot
     } catch (error) {
       console.error('Error taking screenshot:', error)
       return null
     } finally {
       setIsTakingScreenshot(false)
     }
+  }
+
+  // Compress screenshot to reduce file size
+  const compressScreenshot = async (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        
+        if (!ctx) {
+          resolve(dataUrl) // Fallback to original if compression fails
+          return
+        }
+        
+        // Calculate optimal dimensions (max 800x600 for chat)
+        const maxWidth = 800
+        const maxHeight = 600
+        let { width, height } = img
+        
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height)
+          width *= ratio
+          height *= ratio
+        }
+        
+        canvas.width = width
+        canvas.height = height
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height)
+        
+        // Convert to JPEG with very low quality for chat (0.5)
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5)
+        
+        // Log compression results
+        const originalSize = Math.round(dataUrl.length * 0.75 / 1024) // Approximate KB
+        const compressedSize = Math.round(compressedDataUrl.length * 0.75 / 1024)
+        console.log(`📸 Screenshot compressed: ${originalSize}KB → ${compressedSize}KB (${Math.round((1 - compressedSize/originalSize) * 100)}% reduction)`)
+        
+        resolve(compressedDataUrl)
+      }
+      
+      img.onerror = () => {
+        console.warn('Failed to compress screenshot, using original')
+        resolve(dataUrl)
+      }
+      
+      img.src = dataUrl
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -98,7 +155,18 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`
+        
+        if (response.status === 413) {
+          throw new Error('Screenshot too large. Please try again with a smaller view or reduce the model size.')
+        } else if (response.status === 429) {
+          throw new Error('API rate limit exceeded. Please wait a moment and try again.')
+        } else if (response.status >= 500) {
+          throw new Error('Server error. Please try again later.')
+        } else {
+          throw new Error(`Request failed: ${errorMessage}`)
+        }
       }
 
       const data = await response.json()

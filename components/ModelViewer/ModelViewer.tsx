@@ -626,7 +626,27 @@ const ModelViewer = forwardRef<ModelViewerRef, ModelViewerProps>(({ scan }, ref)
         }
 
         const canvas = rendererRef.current.domElement
-        return canvas.toDataURL('image/png')
+        
+        // Create a smaller canvas for the screenshot to reduce file size
+        const scale = 0.5 // Reduce size by 50%
+        const screenshotCanvas = document.createElement('canvas')
+        const ctx = screenshotCanvas.getContext('2d')
+        
+        if (!ctx) {
+          console.error('Failed to get 2D context for screenshot')
+          return null
+        }
+        
+        // Set smaller dimensions
+        screenshotCanvas.width = canvas.width * scale
+        screenshotCanvas.height = canvas.height * scale
+        
+        // Draw the original canvas scaled down
+        ctx.drawImage(canvas, 0, 0, screenshotCanvas.width, screenshotCanvas.height)
+        
+        // Convert to JPEG with lower quality for smaller file size
+        // JPEG with 0.7 quality provides good balance between size and quality
+        return screenshotCanvas.toDataURL('image/jpeg', 0.7)
       } catch (error) {
         console.error('Screenshot failed:', error)
         return null
