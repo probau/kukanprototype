@@ -124,7 +124,7 @@ export default function Home() {
                 <p className="text-sm text-gray-600">AI Room Analysis Prototype</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-end space-x-4">
               <ScanSelector
                 scans={scans}
                 selectedScan={selectedScan}
@@ -134,7 +134,7 @@ export default function Home() {
               {/* File Upload Button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center space-x-2"
+                className="h-10 px-3 text-sm rounded bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center space-x-2"
                 title="Upload 3D Model"
                 disabled={isUploading}
               >
