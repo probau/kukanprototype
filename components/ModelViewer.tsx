@@ -639,12 +639,12 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     scene.background = new THREE.Color(0xf8f9fa) // Lighter background for better contrast
     sceneRef.current = scene
 
-    // Camera setup
+    // Camera setup - UNLIMITED zoom range
     const camera = new THREE.PerspectiveCamera(
       75,
       mountRef.current.clientWidth / mountRef.current.clientHeight,
-      0.1,
-      1000
+      0.0001,  // Near clipping plane - allows zooming VERY close
+      1000000   // Far clipping plane - allows zooming VERY far
     )
     camera.position.set(5, 5, 5)
     camera.lookAt(0, 0, 0)
@@ -732,13 +732,21 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     }
 
     const onWheel = (event: WheelEvent) => {
-      // Zoom in/out with scroll wheel
+      // Zoom in/out with scroll wheel - UNLIMITED zoom
       const zoomSpeed = 0.1
       const zoomDelta = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed
       controls.distance *= zoomDelta
       
-      // Ensure minimum and maximum distances
-      controls.distance = Math.max(0.1, Math.min(1000, controls.distance))
+      // NO DISTANCE LIMITS - zoom as close or far as you want
+      // controls.distance = Math.max(0.1, Math.min(1000, controls.distance)) // REMOVED
+      
+      // Debug logging for zoom
+      console.log('Zooming:', {
+        deltaY: event.deltaY,
+        zoomDelta,
+        newDistance: controls.distance,
+        direction: event.deltaY > 0 ? 'out' : 'in'
+      })
       
       controls.update()
     }
