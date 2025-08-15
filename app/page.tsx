@@ -118,10 +118,13 @@ export default function Home() {
           <div className="flex items-center justify-between h-20 py-2">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <h1 className="text-2xl font-bold text-primary">Kukan</h1>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-600">AI Room Analysis Prototype</p>
+                <div className="flex items-center space-x-2">
+                  <img 
+                    src="/logo.jpg" 
+                    alt="KUKAN Logo" 
+                    className="h-32 w-32 object-contain"
+                  />
+                </div>
               </div>
             </div>
             <div className="flex items-end space-x-4">
@@ -173,48 +176,30 @@ export default function Home() {
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Main Content - Full Width 3D Viewer with Overlaid Chat */}
       <main 
-        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
+        className="relative w-full h-[calc(100vh-120px)]"
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
         {selectedScan ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-200px)]">
-            {/* 3D Model Viewer */}
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">3D Room View</h2>
-                <p className="text-sm text-gray-600">Navigate and explore the room from any angle</p>
-              </div>
-              <div className="h-full">
-                <ModelViewer ref={modelViewerRef} scan={selectedScan} />
-              </div>
+          <>
+            {/* Full-width 3D Model Viewer */}
+            <div className="w-full h-full">
+              <ModelViewer ref={modelViewerRef} scan={selectedScan} />
             </div>
 
-            {/* Chat Interface */}
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">AI Room Analysis</h2>
-                <p className="text-sm text-gray-600">Ask questions about what you see in the 3D view</p>
-              </div>
-              <div className="h-full">
-                <ChatInterface 
-                  scan={selectedScan} 
-                  modelViewerRef={modelViewerRef}
-                />
-              </div>
+            {/* Chat Interface Overlay - Bottom Right */}
+            <div className="absolute bottom-6 right-6 z-20 w-72 max-h-80">
+              <ChatInterface scan={selectedScan} modelViewerRef={modelViewerRef} />
             </div>
-          </div>
+          </>
         ) : (
-          <div className="text-center py-12">
-            <div className="text-gray-400 mb-4">
-              <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">No 3D Model Selected</h2>
+              <p className="text-gray-600">Please select a scan from the dropdown or upload a new model</p>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Room Selected</h3>
-            <p className="text-gray-500">Select a room scan from the dropdown above to get started.</p>
           </div>
         )}
       </main>

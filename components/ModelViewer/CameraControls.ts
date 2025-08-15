@@ -31,23 +31,25 @@ export function createCameraControls(camera: THREE.PerspectiveCamera): CameraCon
       const up = new THREE.Vector3()
       up.crossVectors(right, forward).normalize()
       
-      // Calculate pan speed based on model size with better curve for small objects
-      const basePanSpeed = 0.005
-      const sizeMultiplier = Math.max(0.1, controls.modelSize)
+      // Calculate pan speed based on model size with much better curve for small objects
+      const basePanSpeed = 0.003 // Reduced base speed for smoother control
+      const sizeMultiplier = Math.max(0.01, controls.modelSize) // Allow even smaller sizes
       
-      // Use a logarithmic curve for small objects to prevent too fast panning
-      // Small objects get slower panning, large objects get faster panning
+      // Use a much more gradual curve for small objects to prevent too fast panning
       let panSpeed: number
-      if (sizeMultiplier < 1.0) {
-        // For small objects, use slower panning with logarithmic scaling
-        panSpeed = basePanSpeed * (0.3 + 0.7 * Math.log(sizeMultiplier + 0.1))
+      if (sizeMultiplier < 0.5) {
+        // For very small objects, use extremely slow panning with exponential scaling
+        panSpeed = basePanSpeed * Math.pow(sizeMultiplier, 2) * 0.5
+      } else if (sizeMultiplier < 1.0) {
+        // For small objects, use slower panning with quadratic scaling
+        panSpeed = basePanSpeed * (0.2 + 0.8 * Math.pow(sizeMultiplier, 1.5))
       } else {
         // For large objects, use linear scaling
         panSpeed = basePanSpeed * sizeMultiplier
       }
       
-      // Ensure minimum and maximum pan speeds
-      panSpeed = Math.max(0.001, Math.min(0.02, panSpeed))
+      // Ensure minimum and maximum pan speeds with tighter bounds for small objects
+      panSpeed = Math.max(0.0005, Math.min(0.015, panSpeed))
       
       // Log pan speed for debugging (only occasionally to avoid spam)
       if (Math.random() < 0.01) { // 1% chance to log
@@ -55,7 +57,8 @@ export function createCameraControls(camera: THREE.PerspectiveCamera): CameraCon
           modelSize: controls.modelSize, 
           sizeMultiplier, 
           panSpeed: panSpeed.toFixed(6),
-          isSmallModel: sizeMultiplier < 1.0 
+          isSmallModel: sizeMultiplier < 1.0,
+          speedCategory: sizeMultiplier < 0.5 ? 'very_small' : sizeMultiplier < 1.0 ? 'small' : 'large'
         })
       }
       
@@ -71,11 +74,31 @@ export function createCameraControls(camera: THREE.PerspectiveCamera): CameraCon
     
     // Rotate camera view (yaw and pitch)
     rotate: (deltaX: number, deltaY: number) => {
+      // Calculate rotation speed based on model size for smoother control of small objects
+      const baseRotationSpeed = 0.008 // Reduced base speed for smoother control
+      const sizeMultiplier = Math.max(0.01, controls.modelSize)
+      
+      // Use a more gradual curve for small objects to prevent jerky rotation
+      let rotationSpeed: number
+      if (sizeMultiplier < 0.5) {
+        // For very small objects, use extremely slow rotation with exponential scaling
+        rotationSpeed = baseRotationSpeed * Math.pow(sizeMultiplier, 1.8) * 0.4
+      } else if (sizeMultiplier < 1.0) {
+        // For small objects, use slower rotation with quadratic scaling
+        rotationSpeed = baseRotationSpeed * (0.25 + 0.75 * Math.pow(sizeMultiplier, 1.2))
+      } else {
+        // For large objects, use linear scaling
+        rotationSpeed = baseRotationSpeed * sizeMultiplier
+      }
+      
+      // Ensure minimum and maximum rotation speeds
+      rotationSpeed = Math.max(0.002, Math.min(0.015, rotationSpeed))
+      
       // Yaw rotation (left/right)
-      controls.rotation.y -= deltaX * 0.01
+      controls.rotation.y -= deltaX * rotationSpeed
       
       // Pitch rotation (up/down) with limits to prevent flipping
-      controls.rotation.x -= deltaY * 0.01
+      controls.rotation.x -= deltaY * rotationSpeed
       controls.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, controls.rotation.x))
       
       controls.update()

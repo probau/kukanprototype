@@ -147,17 +147,27 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white bg-opacity-95 backdrop-blur-sm rounded-lg shadow-xl border border-gray-200">
+      {/* Header */}
+      <div className="flex items-center justify-between p-3 border-b border-gray-200 bg-gray-50 bg-opacity-80 rounded-t-lg">
+        <div className="flex items-center space-x-2">
+          <Bot className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium text-gray-700">AI Room Analysis</span>
+        </div>
+        <div className="text-xs text-gray-500">
+          {messages.length > 0 && `${messages.length} messages`}
+        </div>
+      </div>
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-2">
+      <div className="flex-1 overflow-y-auto space-y-3 p-3 max-h-64">
         {messages.length === 0 && (
-          <div className="text-center text-gray-500 py-8">
-            <Bot className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-            <p className="text-sm">Ask me anything about this room!</p>
-            <p className="text-xs mt-1">I can analyze what you see from your current view</p>
-            <div className="mt-3 flex items-center justify-center text-xs text-gray-400">
+          <div className="text-center text-gray-500 py-4">
+            <Bot className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+            <p className="text-xs">Ask me about what you see!</p>
+            <div className="mt-2 flex items-center justify-center text-xs text-gray-400">
               <Camera className="h-3 w-3 mr-1" />
-              <span>I'll capture your current 3D view</span>
+              <span>I'll capture your current view</span>
             </div>
           </div>
         )}
@@ -168,7 +178,7 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+              className={`max-w-48 px-3 py-2 rounded-lg text-xs ${
                 message.role === 'user'
                   ? 'bg-primary text-white'
                   : 'bg-gray-100 text-gray-800'
@@ -176,9 +186,9 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
             >
               <div className="flex items-start space-x-2">
                 {message.role === 'user' ? (
-                  <User className="h-4 w-4 mt-1 flex-shrink-0" />
+                  <User className="h-3 w-3 mt-0.5 flex-shrink-0" />
                 ) : (
-                  <Bot className="h-4 w-4 mt-1 flex-shrink-0" />
+                  <Bot className="h-3 w-3 mt-0.5 flex-shrink-0" />
                 )}
                 <div className="flex-1">
                   {renderMessageContent(message.content, message.role)}
@@ -193,14 +203,14 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
         
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg">
+            <div className="bg-gray-100 text-gray-800 px-3 py-2 rounded-lg">
               <div className="flex items-center space-x-2">
-                <Bot className="h-4 w-4" />
+                <Bot className="h-3 w-3" />
                 <div className="flex items-center space-x-2">
                   {isTakingScreenshot && (
                     <div className="flex items-center text-xs text-gray-600">
                       <Camera className="h-3 w-3 mr-1 animate-pulse" />
-                      <span>Capturing view...</span>
+                      <span>Capturing...</span>
                     </div>
                   )}
                   <div className="flex space-x-1">
@@ -218,28 +228,28 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="flex space-x-2 p-2 border-t border-gray-200">
+      <form onSubmit={handleSubmit} className="flex space-x-2 p-3 border-t border-gray-200 bg-gray-50 bg-opacity-80 rounded-b-lg">
         <input
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Ask about what you see in the 3D view..."
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+          placeholder="Ask about the 3D view..."
+          className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary focus:border-transparent"
           disabled={isLoading}
         />
         <button
           type="submit"
           disabled={!inputValue.trim() || isLoading}
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+          className="px-3 py-1.5 bg-primary text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 text-xs"
         >
           {isTakingScreenshot ? (
             <>
-              <Camera className="h-4 w-4 animate-pulse" />
+              <Camera className="h-3 w-3 animate-pulse" />
               <span>Capturing...</span>
             </>
           ) : (
             <>
-              <Send className="h-4 w-4" />
+              <Send className="h-3 w-3" />
               <span>Ask</span>
             </>
           )}
@@ -248,14 +258,14 @@ export default function ChatInterface({ scan, modelViewerRef }: ChatInterfacePro
 
       {/* Example Questions */}
       {messages.length === 0 && (
-        <div className="p-3 bg-gray-50 border-t border-gray-200">
+        <div className="p-2 bg-gray-50 bg-opacity-60 border-t border-gray-200">
           <p className="text-xs text-gray-600 mb-2">Try asking:</p>
           <div className="space-y-1">
             {[
-              "What furniture do you see in this view?",
+              "What furniture do you see?",
               "How far is the table from the wall?",
-              "What's the size of the rug in this perspective?",
-              "Can you see any windows or doors?"
+              "What's the size of the rug?",
+              "Can you see any windows?"
             ].map((question, index) => (
               <button
                 key={index}

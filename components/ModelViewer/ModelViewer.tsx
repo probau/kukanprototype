@@ -499,9 +499,35 @@ const ModelViewer = forwardRef<ModelViewerRef, ModelViewerProps>(({ scan }, ref)
       if (!controlsRef.current) return
 
       // Zoom in = move forward, Zoom out = move backward in view direction
-      const baseZoomSpeed = 0.03
-      const sizeMultiplier = Math.max(0.1, controlsRef.current.modelSize)
-      const zoomSpeed = baseZoomSpeed * sizeMultiplier
+      const baseZoomSpeed = 0.02 // Reduced base speed for smoother control
+      const sizeMultiplier = Math.max(0.01, controlsRef.current.modelSize) // Allow even smaller sizes
+      
+      // Use a much more gradual curve for small objects to prevent too fast zooming
+      let zoomSpeed: number
+      if (sizeMultiplier < 0.5) {
+        // For very small objects, use extremely slow zooming with exponential scaling
+        zoomSpeed = baseZoomSpeed * Math.pow(sizeMultiplier, 2) * 0.3
+      } else if (sizeMultiplier < 1.0) {
+        // For small objects, use slower zooming with quadratic scaling
+        zoomSpeed = baseZoomSpeed * (0.15 + 0.85 * Math.pow(sizeMultiplier, 1.3))
+      } else {
+        // For large objects, use linear scaling
+        zoomSpeed = baseZoomSpeed * sizeMultiplier
+      }
+      
+      // Ensure minimum and maximum zoom speeds with tighter bounds for small objects
+      zoomSpeed = Math.max(0.003, Math.min(0.025, zoomSpeed))
+      
+      // Log zoom speed for debugging (only occasionally to avoid spam)
+      if (Math.random() < 0.01) { // 1% chance to log
+        console.log('🔍 Zoom speed calculation:', { 
+          modelSize: controlsRef.current.modelSize, 
+          sizeMultiplier, 
+          zoomSpeed: zoomSpeed.toFixed(6),
+          isSmallModel: sizeMultiplier < 1.0,
+          speedCategory: sizeMultiplier < 0.5 ? 'very_small' : sizeMultiplier < 1.0 ? 'small' : 'large'
+        })
+      }
 
       const zoomDirection = event.deltaY > 0 ? -1 : 1 // Negative deltaY = zoom in (forward)
       const zoomDistance = zoomDirection * zoomSpeed * Math.max(0.1, controlsRef.current.position.length())
