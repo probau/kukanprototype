@@ -89,8 +89,23 @@ const ModelViewer = forwardRef<ModelViewerRef, ModelViewerProps>(({ scan }, ref)
     lightsRef.current = lights
     scene.add(lights)
 
-    // Create grid
+    // Create grid with z-fighting prevention
     const grid = new THREE.GridHelper(20, 20, 0x888888, 0xcccccc)
+    
+    // Position grid slightly below models to prevent z-fighting
+    grid.position.y = -0.01
+    
+    // Adjust grid material properties to reduce z-fighting
+    if (grid.material instanceof THREE.Material) {
+      grid.material.depthTest = true
+      grid.material.depthWrite = false
+      grid.material.transparent = true
+      grid.material.opacity = 0.8
+    }
+    
+    // Set render order to ensure grid renders before models
+    grid.renderOrder = -1
+    
     gridRef.current = grid
     scene.add(grid)
 
@@ -413,10 +428,15 @@ const ModelViewer = forwardRef<ModelViewerRef, ModelViewerProps>(({ scan }, ref)
     }
   }, [scan])
 
-  // Update grid visibility
+  // Update grid visibility and positioning
   useEffect(() => {
     if (gridRef.current) {
       gridRef.current.visible = showGrid
+      
+      // Ensure grid stays positioned below models to prevent z-fighting
+      if (showGrid) {
+        gridRef.current.position.y = -0.01
+      }
     }
   }, [showGrid])
 
