@@ -47,9 +47,9 @@ export default function Home() {
       return
     }
 
-    // Validate file size (100MB limit for local files)
-    if (file.size > 100 * 1024 * 1024) {
-      setUploadError('File too large. Please use files smaller than 100MB.')
+    // Validate file size (500MB limit for large 3D models)
+    if (file.size > 500 * 1024 * 1024) {
+      setUploadError('File too large. Please use files smaller than 500MB.')
       return
     }
 

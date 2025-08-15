@@ -357,9 +357,11 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         if (controlsRef.current) {
           controlsRef.current.target.copy(newCenter)
           controlsRef.current.minDistance = 0.1
-          controlsRef.current.maxDistance = finalMaxSize * 0.8
+          controlsRef.current.maxDistance = finalMaxSize * 5 // Increased for better navigation
           controlsRef.current.enablePan = true
           controlsRef.current.screenSpacePanning = true
+          controlsRef.current.enableZoom = true
+          controlsRef.current.enableRotate = true
         }
         
         console.log('Camera positioned INSIDE small local OBJ model:', {
@@ -669,10 +671,13 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.05
-    controls.screenSpacePanning = false
-    controls.minDistance = 0.5
-    controls.maxDistance = 50
+    controls.screenSpacePanning = true
+    controls.minDistance = 0.1
+    controls.maxDistance = 1000
     controls.maxPolarAngle = Math.PI
+    controls.enablePan = true
+    controls.enableZoom = true
+    controls.enableRotate = true
     controlsRef.current = controls
 
     // Create lights group for easy management
@@ -1004,8 +1009,11 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         
         // Update OrbitControls
         controls.target.copy(finalCenter)
-        controls.minDistance = maxSize * 0.3
-        controls.maxDistance = maxSize * 8
+        controls.minDistance = maxSize * 0.1 // Reduced for closer zoom
+        controls.maxDistance = maxSize * 20 // Increased for better navigation
+        controls.enablePan = true
+        controls.enableZoom = true
+        controls.enableRotate = true
         
         console.log('Camera positioned for large GLB/GLTF model:', {
           originalMaxSize,
@@ -1187,8 +1195,11 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         
         // Update OrbitControls
         controls.target.copy(finalCenter)
-        controls.minDistance = maxSize * 0.3
-        controls.maxDistance = maxSize * 8
+        controls.minDistance = maxSize * 0.1 // Reduced for closer zoom
+        controls.maxDistance = maxSize * 20 // Increased for better navigation
+        controls.enablePan = true
+        controls.enableZoom = true
+        controls.enableRotate = true
         
         console.log('Camera positioned for large model:', {
           originalMaxSize,
@@ -1375,8 +1386,11 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                          
                          // Update controls
                          controls.target.copy(center)
-                         controls.minDistance = maxSize * 0.3
-                         controls.maxDistance = maxSize * 8
+                         controls.minDistance = maxSize * 0.1 // Reduced for closer zoom
+                         controls.maxDistance = maxSize * 20 // Increased for better navigation
+                         controls.enablePan = true
+                         controls.enableZoom = true
+                         controls.enableRotate = true
                          
                          console.log('Reset camera for large model:', {
                            maxSize,
