@@ -8,11 +8,9 @@ Each room scan should be in its own subfolder with the following files:
 
 ```
 scans/
-├── living-room/
-│   ├── model.obj          # 3D model file (required)
-│   ├── model.mtl          # Material file (optional, for textures)
-│   ├── textures/          # Texture files (optional)
-│   └── room.jpg           # Stitched image for AI analysis (required)
+├── museum/
+│   ├── museum.glb         # 3D model file (required)
+│   └── textures/          # Texture files (optional)
 ├── bedroom/
 │   ├── model.obj
 │   ├── model.mtl
@@ -24,8 +22,8 @@ scans/
 
 ## File Requirements
 
-### model.obj
-- **Format**: Standard OBJ file format
+### 3D Model Files
+- **Formats**: OBJ, GLB, or GLTF files supported
 - **Size**: Optimize for web loading (<10MB recommended)
 - **Origin**: Center the model at origin (0,0,0) if possible
 
@@ -48,22 +46,22 @@ scans/
 ## Material Support
 
 The application now supports:
-- ✅ **OBJ files** - Basic 3D geometry
-- ✅ **MTL files** - Material definitions and properties
+- ✅ **OBJ files** - Basic 3D geometry with MTL materials
+- ✅ **GLB/GLTF files** - Modern 3D format with embedded materials
+- ✅ **MTL files** - Material definitions and properties for OBJ files
 - ✅ **Texture files** - Referenced by MTL files
-- ✅ **Fallback rendering** - Works without MTL files
+- ✅ **Fallback rendering** - Works without material files
 
 ## Adding New Scans
 
 1. Create a new folder with descriptive name (e.g., `dining-room`)
-2. Add the required `model.obj` and `room.jpg` files
-3. Optionally add `model.mtl` and `textures/` folder
+2. Add a 3D model file (`.obj`, `.glb`, or `.gltf`)
+3. For OBJ files, optionally add `.mtl` and `textures/` folder
 4. Restart the development server
 5. The new scan will appear in the dropdown selector
 
 ## Troubleshooting
 
-- **Model not loading**: Check OBJ file format and size
-- **Materials not showing**: Verify MTL file exists and references textures correctly
-- **AI not responding**: Ensure room.jpg exists and contains A4 reference
+- **Model not loading**: Check file format (OBJ, GLB, GLTF) and size
+- **Materials not showing**: For OBJ files, verify MTL file exists and references textures correctly
 - **Performance issues**: Optimize model, texture, and material file sizes

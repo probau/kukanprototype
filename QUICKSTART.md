@@ -22,12 +22,12 @@ OPENAI_API_KEY=sk-your_actual_api_key_here
 Place your room scan files in the `public/scans/` folder:
 ```
 public/scans/
-├── living-room/
-│   ├── model.obj          # Your 3D model
-│   └── room.jpg           # Room image with A4 paper
+├── museum/
+│   ├── museum.glb         # Your 3D model
+│   └── textures/          # Texture files (optional)
 └── bedroom/
-    ├── model.obj
-    └── room.jpg
+    ├── room.obj
+    └── room.mtl
 ```
 
 ### 4. Start Development Server

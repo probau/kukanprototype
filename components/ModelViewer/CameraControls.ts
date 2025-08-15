@@ -31,10 +31,33 @@ export function createCameraControls(camera: THREE.PerspectiveCamera): CameraCon
       const up = new THREE.Vector3()
       up.crossVectors(right, forward).normalize()
       
-      // Calculate pan speed based on model size - bigger models = faster panning
+      // Calculate pan speed based on model size with better curve for small objects
       const basePanSpeed = 0.005
       const sizeMultiplier = Math.max(0.1, controls.modelSize)
-      const panSpeed = basePanSpeed * sizeMultiplier
+      
+      // Use a logarithmic curve for small objects to prevent too fast panning
+      // Small objects get slower panning, large objects get faster panning
+      let panSpeed: number
+      if (sizeMultiplier < 1.0) {
+        // For small objects, use slower panning with logarithmic scaling
+        panSpeed = basePanSpeed * (0.3 + 0.7 * Math.log(sizeMultiplier + 0.1))
+      } else {
+        // For large objects, use linear scaling
+        panSpeed = basePanSpeed * sizeMultiplier
+      }
+      
+      // Ensure minimum and maximum pan speeds
+      panSpeed = Math.max(0.001, Math.min(0.02, panSpeed))
+      
+      // Log pan speed for debugging (only occasionally to avoid spam)
+      if (Math.random() < 0.01) { // 1% chance to log
+        console.log('📐 Pan speed calculation:', { 
+          modelSize: controls.modelSize, 
+          sizeMultiplier, 
+          panSpeed: panSpeed.toFixed(6),
+          isSmallModel: sizeMultiplier < 1.0 
+        })
+      }
       
       // Apply panning
       const panX = right.clone().multiplyScalar(-deltaX * panSpeed)

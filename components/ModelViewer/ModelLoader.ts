@@ -62,10 +62,10 @@ export function loadOBJModel(
     const mtlLoader = new MTLLoader()
     const folderPath = scan.modelPath.substring(0, scan.modelPath.lastIndexOf('/'))
     
-    // For server models, construct the correct MTL path
-    if (scan.modelPath.startsWith('/scans/')) {
-      // For now, just try 'model.mtl' first since that's what living-room has
-      const mtlPath = `${folderPath}/model.mtl`
+          // For server models, construct the correct MTL path
+      if (scan.modelPath.startsWith('/scans/')) {
+        // Try 'model.mtl' first as it's a common naming convention
+        const mtlPath = `${folderPath}/model.mtl`
       
       console.log('Loading MTL file from:', mtlPath, 'for OBJ file:', scan.modelPath)
       

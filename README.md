@@ -59,10 +59,8 @@ Kukan_prototype/
 │   └── scan.ts                    # TypeScript interfaces
 ├── public/
 │   └── scans/                     # Room scan data
-│       └── living-room/
-│           ├── room.obj           # 3D model
-│           ├── room.mtl           # Materials (optional)
-│           ├── room.jpg           # Reference image (legacy)
+│       └── museum/
+│           ├── museum.glb         # 3D model
 │           └── textures/          # Texture files (optional)
 └── package.json                   # Dependencies
 ```
@@ -87,9 +85,8 @@ OPENAI_API_KEY=your_api_key_here
 Place your room scan folders in `public/scans/`:
 ```
 public/scans/
-├── living-room/
-│   ├── room.obj          # 3D model file
-│   ├── room.mtl          # Materials file (optional)
+├── museum/
+│   ├── museum.glb        # 3D model file
 │   └── textures/         # Texture folder (optional)
 └── bedroom/
     ├── room.obj
