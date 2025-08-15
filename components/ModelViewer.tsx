@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+
 import { Scan } from '@/types/scan'
 import { Camera, Grid3X3, Upload } from 'lucide-react'
 
@@ -30,9 +30,14 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
   const [lightingMode, setLightingMode] = useState<'normal' | 'bright' | 'studio'>('bright') // Default to bright for photogrammetry
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [showControlsHint, setShowControlsHint] = useState(false)
+  const isAnimatingRef = useRef(false)
   const gridRef = useRef<THREE.GridHelper | null>(null)
   const lightsRef = useRef<THREE.Group | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const currentModelRef = useRef<THREE.Object3D | null>(null)
+  const animationRef = useRef<number | null>(null)
 
   // Expose screenshot method to parent component
   useImperativeHandle(ref, () => ({
@@ -62,6 +67,100 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       }
     }
   }))
+
+  // Entrance animation function - smooth camera approach from far away
+  const playEntranceAnimation = () => {
+    if (!controlsRef.current) return
+    
+    setIsAnimating(true)
+    isAnimatingRef.current = true
+    
+    // Store initial target position
+    const targetPosition = new THREE.Vector3(0, 2, 0)
+    // Target rotation will be calculated to look at (0, 0, 0) from final position
+    
+    // Start from much higher position - top-down approach
+    const startPosition = new THREE.Vector3(0, 20, 0) // Much higher up on Y axis
+    const startRotation = new THREE.Euler(0, 0, 0, 'YXZ')
+    
+    // Set initial camera position
+    controlsRef.current.position.copy(startPosition)
+    controlsRef.current.rotation.copy(startRotation)
+    controlsRef.current.update()
+    
+    // Create animation timeline - longer duration for more dramatic effect
+    const startTime = Date.now()
+    const animationDuration = 3500 // 3.5 seconds for slower, more cinematic movement
+    
+    const animate = () => {
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(elapsed / animationDuration, 1)
+      
+      // Custom easing function for forward approach feeling
+      // Start slow, accelerate in middle, slow down at end
+      const easedProgress = progress < 0.5 
+        ? 2 * progress * progress // Slow start
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2 // Slow finish
+      
+      // Interpolate position - forward movement
+      const currentPosition = new THREE.Vector3()
+      currentPosition.lerpVectors(startPosition, targetPosition, easedProgress)
+      
+      // Calculate rotation to always look at (0, 0, 0) from current position
+      const lookAtTarget = new THREE.Vector3(0, 0, 0)
+      const direction = new THREE.Vector3().subVectors(lookAtTarget, currentPosition).normalize()
+      // Use lookAt for smooth animation that always points at center
+      const currentRotation = new THREE.Euler()
+      currentRotation.setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction))
+      
+      // Update controls
+      if (controlsRef.current) {
+        controlsRef.current.position.copy(currentPosition)
+        controlsRef.current.rotation.copy(currentRotation)
+        controlsRef.current.update()
+      }
+      
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate)
+      } else {
+        // Animation complete - ensure final position is exact and looking at (0, 0, 0)
+        if (controlsRef.current) {
+          controlsRef.current.position.copy(targetPosition)
+          // Calculate final rotation to look at (0, 0, 0)
+          const lookAtTarget = new THREE.Vector3(0, 0, 0)
+          const direction = new THREE.Vector3().subVectors(lookAtTarget, targetPosition).normalize()
+          // Convert to Euler angles that work with manual rotation system
+          const yaw = Math.atan2(direction.x, direction.z)
+          const pitch = Math.asin(-direction.y)
+          const finalRotation = new THREE.Euler(pitch, yaw, 0, 'YXZ')
+          controlsRef.current.rotation.copy(finalRotation)
+          
+          // Update controls and ensure smooth transition to manual control
+          controlsRef.current.update()
+          
+          // Ensure camera maintains focus on (0, 0, 0) after animation
+          // by updating the camera matrix directly without conflicting with controls
+          if (cameraRef.current) {
+            // Force camera to look at center one final time
+            cameraRef.current.lookAt(0, 0, 0)
+            // Update the camera's matrix to reflect the new orientation
+            cameraRef.current.updateMatrixWorld()
+            // Sync the controls rotation to match the camera's actual orientation
+            controlsRef.current.rotation.copy(cameraRef.current.rotation)
+          }
+        }
+        setIsAnimating(false)
+        isAnimatingRef.current = false
+        animationRef.current = null
+        
+        // Show controls hint briefly after animation
+        setShowControlsHint(true)
+        setTimeout(() => setShowControlsHint(false), 3000) // Hide after 3 seconds
+      }
+    }
+    
+    animate()
+  }
 
   const updateLighting = (mode: 'normal' | 'bright' | 'studio') => {
     if (!lightsRef.current) return
@@ -300,6 +399,12 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       scale: scale
     })
     
+    // Update camera controls with model size for movement speed
+    if (controlsRef.current) {
+      const maxDim = Math.max(size.x, size.y, size.z)
+      controlsRef.current.setModelSize(maxDim)
+    }
+    
     // Apply the same camera positioning logic
     const maxSize = Math.max(finalSize.x, finalSize.y, finalSize.z)
     const originalMaxSize = Math.max(size.x, size.y, size.z)
@@ -353,11 +458,14 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         cameraRef.current.fov = 75
         cameraRef.current.updateProjectionMatrix()
         
-        // Update OrbitControls - camera stays at center, controls rotate around it
+        // Keep camera at user-specified position (0, 2, 0) looking at (0, 0, 0)
         if (controlsRef.current) {
-          controlsRef.current.target.copy(newCenter)
-          controlsRef.current.distance = finalMaxSize * 0.4 // Set initial distance
+          controlsRef.current.position.set(0, 2, 0)
+          controlsRef.current.rotation.set(0, 0, 0, 'YXZ')
           controlsRef.current.update() // Update camera position
+          
+          // Play entrance animation
+          playEntranceAnimation()
         }
         
         console.log('Camera positioned INSIDE small local OBJ model:', {
@@ -381,11 +489,14 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         )
         cameraRef.current.lookAt(finalCenter)
         
-        // Update OrbitControls
+        // Keep camera at user-specified position (0, 2, 0) looking at (0, 0, 0)
         if (controlsRef.current) {
-          controlsRef.current.target.copy(finalCenter)
-          controlsRef.current.minDistance = maxSize * 0.3
-          controlsRef.current.maxDistance = maxSize * 8
+          controlsRef.current.position.set(0, 2, 0)
+          controlsRef.current.rotation.set(0, 0, 0, 'YXZ')
+          controlsRef.current.update() // Update camera position
+          
+          // Play entrance animation
+          playEntranceAnimation()
         }
         
         console.log('Camera positioned for large local OBJ model:', {
@@ -400,7 +511,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     
     console.log('Final local OBJ camera position:', {
       position: cameraRef.current?.position.toArray(),
-      target: controlsRef.current?.target.toArray()
+      target: finalCenter.toArray()
     })
     
     // Update camera projection
@@ -501,6 +612,12 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       scale: scale
     })
     
+    // Update camera controls with model size for movement speed
+    if (controlsRef.current) {
+      const maxDim = Math.max(size.x, size.y, size.z)
+      controlsRef.current.setModelSize(maxDim)
+    }
+    
     // More aggressive scaling to ensure model is visible
     const maxSize = Math.max(finalSize.x, finalSize.y, finalSize.z)
     const originalMaxSize = Math.max(size.x, size.y, size.z) // Check original size, not scaled
@@ -582,11 +699,21 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         )
         cameraRef.current.lookAt(finalCenter)
         
-        // Update OrbitControls
+        // Update custom controls - position camera at optimal distance
         if (controlsRef.current) {
-          controlsRef.current.target.copy(finalCenter)
-          controlsRef.current.minDistance = maxSize * 0.3
-          controlsRef.current.maxDistance = maxSize * 8
+          controlsRef.current.position.set(
+            finalCenter.x + optimalDistance,
+            finalCenter.y + optimalDistance * 0.8,
+            finalCenter.z + optimalDistance
+          )
+          // Look at the center
+          controlsRef.current.rotation.set(
+            Math.atan2(optimalDistance * 0.8, optimalDistance),
+            Math.atan2(optimalDistance, optimalDistance),
+            0,
+            'YXZ'
+          )
+          controlsRef.current.update()
         }
         
         console.log('Camera positioned for large GLTF model:', {
@@ -601,7 +728,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     
     console.log('Final GLTF camera position:', {
       position: cameraRef.current?.position.toArray(),
-      target: controlsRef.current?.target.toArray()
+      target: finalCenter.toArray()
     })
     
     // Update camera projection
@@ -646,8 +773,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       0.0001,  // Near clipping plane - allows zooming VERY close
       1000000   // Far clipping plane - allows zooming VERY far
     )
-    camera.position.set(5, 5, 5)
-    camera.lookAt(0, 0, 0)
+    camera.position.set(0, 1, 0)
+    camera.lookAt(0, 0, 1)
     cameraRef.current = camera
 
     // Renderer setup
@@ -661,21 +788,73 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
 
     mountRef.current.appendChild(renderer.domElement)
 
-    // Add custom camera controls for true forward/backward movement
+    // Free camera controls for independent 3D movement
     const controls = {
-      target: new THREE.Vector3(0, 0, 0),
-      distance: 10,
-      phi: 0,
-      theta: 0,
+      position: new THREE.Vector3(0, 1, 0),
+      rotation: new THREE.Euler(0, -Math.PI / 2, 0, 'YXZ'), // Yaw, Pitch, Roll - look forward and down
+      modelSize: 1.0, // Default model size, will be updated when model loads
+      
+      // Move camera forward/backward in view direction
+      moveForward: (distance: number) => {
+        // Calculate forward direction from current rotation
+        const forward = new THREE.Vector3(0, 0, -1)
+        forward.applyEuler(controls.rotation)
+        forward.multiplyScalar(distance)
+        
+        // Move camera position
+        controls.position.add(forward)
+        controls.update()
+      },
+      
+      // Pan camera left/right/up/down in view direction
+      pan: (deltaX: number, deltaY: number) => {
+        // Calculate right and up vectors in view space
+        const forward = new THREE.Vector3(0, 0, -1)
+        forward.applyEuler(controls.rotation)
+        
+        const right = new THREE.Vector3()
+        right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize()
+        
+        const up = new THREE.Vector3()
+        up.crossVectors(right, forward).normalize()
+        
+        // Calculate pan speed based on model size - bigger models = faster panning
+        const basePanSpeed = 0.005  // Increased from 0.001 for faster panning
+        const sizeMultiplier = Math.max(0.1, controls.modelSize)
+        const panSpeed = basePanSpeed * sizeMultiplier
+        
+        // Apply panning
+        const panX = right.clone().multiplyScalar(-deltaX * panSpeed)
+        const panY = up.clone().multiplyScalar(-deltaY * panSpeed)
+        
+        controls.position.add(panX)
+        controls.position.add(panY)
+        
+        controls.update()
+      },
+      
+      // Rotate camera view (yaw and pitch)
+      rotate: (deltaX: number, deltaY: number) => {
+        // Yaw rotation (left/right)
+        controls.rotation.y -= deltaX * 0.01
+        
+        // Pitch rotation (up/down) with limits to prevent flipping
+        controls.rotation.x -= deltaY * 0.01
+        controls.rotation.x = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, controls.rotation.x))
+        
+        controls.update()
+      },
+      
+      // Update model size for speed calculations
+      setModelSize: (size: number) => {
+        controls.modelSize = Math.max(0.1, size)
+        console.log('Camera controls updated with model size:', controls.modelSize)
+      },
       
       update: () => {
-        // Calculate camera position based on spherical coordinates
-        const x = controls.distance * Math.sin(controls.theta) * Math.cos(controls.phi)
-        const y = controls.distance * Math.sin(controls.phi)
-        const z = controls.distance * Math.cos(controls.theta) * Math.cos(controls.phi)
-        
-        camera.position.set(x, y, z)
-        camera.lookAt(controls.target)
+        // Apply position and rotation to camera
+        camera.position.copy(controls.position)
+        camera.rotation.copy(controls.rotation)
         camera.updateMatrixWorld()
       }
     }
@@ -683,13 +862,16 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     // Store controls reference
     controlsRef.current = controls
 
-    // Add mouse event handlers for custom controls
+    // Mouse event handling
     let isMouseDown = false
     let mouseButton = 0
     let lastMouseX = 0
     let lastMouseY = 0
 
     const onMouseDown = (event: MouseEvent) => {
+      // Disable controls during entrance animation
+      if (isAnimatingRef.current) return
+      
       isMouseDown = true
       mouseButton = event.button
       lastMouseX = event.clientX
@@ -697,32 +879,20 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     }
 
     const onMouseMove = (event: MouseEvent) => {
+      // Disable controls during entrance animation
+      if (isAnimatingRef.current) return
+      
       if (!isMouseDown) return
 
       const deltaX = event.clientX - lastMouseX
       const deltaY = event.clientY - lastMouseY
 
-      if (mouseButton === 0) { // Left click - rotate
-        controls.theta -= deltaX * 0.01
-        controls.phi -= deltaY * 0.01
-        controls.phi = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, controls.phi))
-      } else if (mouseButton === 2) { // Right click - pan
-        // Improved panning with better sensitivity
-        const panSpeed = Math.max(0.001, controls.distance * 0.0005)
-        controls.target.x -= deltaX * panSpeed
-        controls.target.y += deltaY * panSpeed
-        
-        // Debug logging for panning
-        console.log('Right-click panning:', {
-          deltaX,
-          deltaY,
-          panSpeed,
-          distance: controls.distance,
-          newTarget: controls.target.toArray()
-        })
+      if (mouseButton === 0) { // Left click - rotate view
+        controls.rotate(deltaX, deltaY)
+      } else if (mouseButton === 2) { // Right click - pan in view direction
+        controls.pan(deltaX, deltaY)
       }
 
-      controls.update()
       lastMouseX = event.clientX
       lastMouseY = event.clientY
     }
@@ -732,23 +902,18 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     }
 
     const onWheel = (event: WheelEvent) => {
-      // Zoom in/out with scroll wheel - UNLIMITED zoom
-      const zoomSpeed = 0.1
-      const zoomDelta = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed
-      controls.distance *= zoomDelta
+      // Disable controls during entrance animation
+      if (isAnimatingRef.current) return
       
-      // NO DISTANCE LIMITS - zoom as close or far as you want
-      // controls.distance = Math.max(0.1, Math.min(1000, controls.distance)) // REMOVED
+      // Zoom in = move forward, Zoom out = move backward in view direction
+      const baseZoomSpeed = 0.03  // Decreased from 0.1 for slower zooming
+      const sizeMultiplier = Math.max(0.1, controls.modelSize)
+      const zoomSpeed = baseZoomSpeed * sizeMultiplier
       
-      // Debug logging for zoom
-      console.log('Zooming:', {
-        deltaY: event.deltaY,
-        zoomDelta,
-        newDistance: controls.distance,
-        direction: event.deltaY > 0 ? 'out' : 'in'
-      })
+      const zoomDirection = event.deltaY > 0 ? -1 : 1 // Negative deltaY = zoom in (forward)
+      const zoomDistance = zoomDirection * zoomSpeed * Math.max(0.1, controls.position.length())
       
-      controls.update()
+      controls.moveForward(zoomDistance)
     }
 
     // Add event listeners
@@ -836,9 +1001,17 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         if (scan.modelPath.startsWith('/scans/')) {
           // Server model - MTL is in the same folder as OBJ
           const folderPath = scan.modelPath.substring(0, scan.modelPath.lastIndexOf('/'))
-          const mtlPath = `${folderPath}/model.mtl`
           
-          console.log('Loading MTL file from:', mtlPath)
+          // Try multiple common MTL filenames since naming conventions vary
+          // Try multiple common MTL filenames since naming conventions vary
+          // The living-room scan has 'model.mtl' but 'room.obj'
+          const possibleMtlFiles = ['model.mtl', 'materials.mtl', 'textures.mtl']
+          let mtlPath = ''
+          
+          // For now, just try 'model.mtl' first since that's what living-room has
+          mtlPath = `${folderPath}/model.mtl`
+          
+          console.log('Loading MTL file from:', mtlPath, 'for OBJ file:', scan.modelPath)
           
           mtlLoader.load(
             mtlPath,
@@ -856,7 +1029,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                   // Progress callback
                 },
                 (error) => {
-                  setError('Failed to load OBJ model')
+                  const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+                  setError(`Failed to load OBJ model: ${errorMessage}`)
                   setIsLoading(false)
                 }
               )
@@ -866,11 +1040,13 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
             },
             (error) => {
               console.warn('MTL loading failed, loading OBJ without materials:', error)
+              console.log('Attempting to load OBJ without materials as fallback')
               // Continue without materials
               const objLoader = new OBJLoader()
               objLoader.load(
                 scan.modelPath,
                 (object) => {
+                  console.log('OBJ loaded successfully without materials')
                   loadOBJModelFromObject(object)
                   // Don't set isLoading to false here - let loadOBJModelFromObject handle it after rendering
                 },
@@ -878,7 +1054,9 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                   // Progress callback
                 },
                 (error) => {
-                  setError('Failed to load OBJ model')
+                  console.error('OBJ loading failed even without materials:', error)
+                  const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+                  setError(`Failed to load OBJ model: ${errorMessage}`)
                   setIsLoading(false)
                 }
               )
@@ -1007,6 +1185,12 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         scale: scale
       })
       
+      // Update camera controls with model size for movement speed
+      if (controlsRef.current) {
+        const maxDim = Math.max(size.x, size.y, size.z)
+        controlsRef.current.setModelSize(maxDim)
+      }
+      
       // Apply the same camera positioning logic as OBJ models
       const maxSize = Math.max(finalSize.x, finalSize.y, finalSize.z)
       const originalMaxSize = Math.max(size.x, size.y, size.z) // Check original size, not scaled
@@ -1059,39 +1243,36 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         camera.fov = 75
         camera.updateProjectionMatrix()
         
-        // Update custom controls
-        controls.target.copy(finalCenter)
-        controls.distance = maxSize * 2.0 // Set initial distance
+        // Keep camera at user-specified position (0, 2, 0) looking at (0, 0, 0)
+        controls.position.set(0, 2, 0)
+        controls.rotation.set(0, 0, 0, 'YXZ')
         controls.update() // Update camera position
+        
+        // Play entrance animation
+        playEntranceAnimation()
         
         console.log('Camera positioned INSIDE small GLB/GLTF model:', {
           originalMaxSize,
           finalMaxSize,
           position: camera.position.toArray(),
-          target: newCenter.toArray(),
+          target: finalCenter.toArray(),
           fov: camera.fov
         })
       } else {
-        // For larger models, use traditional outside positioning
-        const optimalDistance = maxSize * 2.0 // Reduced from 4.0 to 2.0
+        // For larger models, keep camera at user-specified position
+        // Don't reposition the camera - let user control it
         
-        // Position camera to show entire model
-        camera.position.set(
-          finalCenter.x + optimalDistance,
-          finalCenter.y + optimalDistance * 0.8,
-          finalCenter.z + optimalDistance
-        )
-        camera.lookAt(finalCenter)
-        
-        // Update custom controls
-        controls.target.copy(finalCenter)
-        controls.distance = maxSize * 2.0 // Set initial distance
+        // Keep camera at user-specified position (0, 2, 0) looking at (0, 0, 0)
+        controls.position.set(0, 2, 0)
+        controls.rotation.set(0, 0, 0, 'YXZ')
         controls.update() // Update camera position
+        
+        // Play entrance animation
+        playEntranceAnimation()
         
         console.log('Camera positioned for large GLB/GLTF model:', {
           originalMaxSize,
           maxSize,
-          optimalDistance,
           position: camera.position.toArray(),
           target: finalCenter.toArray()
         })
@@ -1099,7 +1280,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       
       console.log('Final GLB/GLTF camera position:', {
         position: camera.position.toArray(),
-        target: controls.target.toArray()
+        target: finalCenter.toArray()
       })
       
       // Update camera projection
@@ -1188,6 +1369,12 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         scale: scale
       })
       
+      // Update camera controls with model size for movement speed
+      if (controlsRef.current) {
+        const maxDim = Math.max(size.x, size.y, size.z)
+        controlsRef.current.setModelSize(maxDim)
+      }
+      
       // More aggressive scaling to ensure model is visible
       const maxSize = Math.max(finalSize.x, finalSize.y, finalSize.z)
       const originalMaxSize = Math.max(size.x, size.y, size.z) // Check original size, not scaled
@@ -1240,10 +1427,13 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         camera.fov = 75
         camera.updateProjectionMatrix()
         
-        // Update OrbitControls - camera stays at center, controls rotate around it
-        controls.target.copy(newCenter)
-        controls.distance = finalMaxSize * 0.4 // Set initial distance
+        // Keep camera at user-specified position (0, 2, 0) looking at (0, 0, 0)
+        controls.position.set(0, 2, 0)
+        controls.rotation.set(0, 0, 0, 'YXZ')
         controls.update() // Update camera position
+        
+        // Play entrance animation
+        playEntranceAnimation()
         
         console.log('Camera positioned INSIDE small model:', {
           originalMaxSize,
@@ -1253,26 +1443,20 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           fov: camera.fov
         })
       } else {
-        // For larger models, use traditional outside positioning
-        const optimalDistance = maxSize * 2.0 // Reduced from 4.0 to 2.0
+        // For larger models, keep camera at user-specified position
+        // Don't reposition the camera - let user control it
         
-        // Position camera to show entire model
-        camera.position.set(
-          finalCenter.x + optimalDistance,
-          finalCenter.y + optimalDistance * 0.8,
-          finalCenter.z + optimalDistance
-        )
-        camera.lookAt(finalCenter)
-        
-        // Update custom controls
-        controls.target.copy(finalCenter)
-        controls.distance = maxSize * 2.0 // Set initial distance
+        // Keep camera at user-specified position (0, 2, 0) looking at (0, 0, 0)
+        controls.position.set(0, 2, 0)
+        controls.rotation.set(0, 0, 0, 'YXZ')
         controls.update() // Update camera position
+        
+        // Play entrance animation
+        playEntranceAnimation()
         
         console.log('Camera positioned for large model:', {
           originalMaxSize,
           maxSize,
-          optimalDistance,
           position: camera.position.toArray(),
           target: finalCenter.toArray()
         })
@@ -1280,7 +1464,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       
       console.log('Final camera position:', {
         position: camera.position.toArray(),
-        target: controls.target.toArray()
+        target: finalCenter.toArray()
       })
       
       // Update camera projection
@@ -1290,15 +1474,13 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       controls.update()
     }
 
+
+
     // Animation loop
     const animate = () => {
       requestAnimationFrame(animate)
       
-      // Update OrbitControls
-      if (controlsRef.current) {
-        controlsRef.current.update()
-      }
-      
+      // Render the scene
       renderer.render(scene, camera)
     }
     animate()
@@ -1320,6 +1502,12 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize)
+      
+      // Cancel any ongoing animation
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+        animationRef.current = null
+      }
       
       // Remove custom event listeners
       if (renderer.domElement) {
@@ -1376,6 +1564,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
           </div>
         </div>
       )}
+      
+
 
       {/* Screenshot capture indicator */}
       {isCapturing && (
@@ -1389,7 +1579,7 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       
       {/* Controls hint */}
       <div className="absolute bottom-2 left-2 text-xs text-gray-500 bg-white bg-opacity-75 px-2 py-1 rounded">
-        Left click + drag to rotate • Right click + drag to pan • Scroll to zoom
+        Left click + drag to rotate • Right click + drag to pan • Scroll up to move forward • Scroll down to move backward
       </div>
 
       {/* Combined Controls Panel */}
@@ -1435,10 +1625,13 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                          camera.fov = Math.min(requiredFOV, 120)
                          camera.updateProjectionMatrix()
                          
-                         // Update controls - stay inside model bounds
-                         controls.target.copy(center)
-                         controls.distance = maxSize * 0.8 // Set initial distance
+                         // Keep camera at user-specified position (0, 2, 0) looking at (0, 0, 0)
+                         controls.position.set(0, 2, 0)
+                         controls.rotation.set(0, 0, 0, 'YXZ')
                          controls.update() // Update camera position
+                         
+                         // Play entrance animation
+                         playEntranceAnimation()
                          
                          console.log('Reset camera INSIDE small model:', {
                            estimatedOriginalSize,
@@ -1459,13 +1652,13 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                          camera.lookAt(center)
                          camera.updateProjectionMatrix()
                          
-                         // Update controls
-                         controls.target.copy(center)
-                         controls.minDistance = maxSize * 0.1 // Reduced for closer zoom
-                         controls.maxDistance = maxSize * 20 // Increased for better navigation
-                         controls.enablePan = true
-                         controls.enableZoom = true
-                         controls.enableRotate = true
+                         // Keep camera at user-specified position (0, 2, 0) looking at (0, 0, 0)
+                         controls.position.set(0, 2, 0)
+                         controls.rotation.set(0, 0, 0, 'YXZ')
+                         controls.update() // Update camera position
+                         
+                         // Play entrance animation
+                         playEntranceAnimation()
                          
                          console.log('Reset camera for large model:', {
                            maxSize,
@@ -1556,6 +1749,22 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
            </div>
          </div>
        </div>
+
+       {/* Controls Hint - appears after entrance animation */}
+       {showControlsHint && (
+         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+           <div className="bg-black bg-opacity-80 text-white px-6 py-4 rounded-lg shadow-2xl transform transition-all duration-500 ease-out">
+             <div className="text-center">
+               <div className="text-lg font-semibold mb-2">🎥 Camera Ready!</div>
+               <div className="text-sm text-gray-300 space-y-1">
+                 <div>• <strong>Left-click + drag</strong> to rotate view</div>
+                 <div>• <strong>Right-click + drag</strong> to pan</div>
+                 <div>• <strong>Mouse wheel</strong> to zoom in/out</div>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
      </div>
    )
 })
