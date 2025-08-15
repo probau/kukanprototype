@@ -24,16 +24,21 @@ export async function GET() {
         const files = await fs.readdir(folderPath)
         
         // Check for required files - only need .obj file now
-        const hasModel = files.some(file => file.endsWith('.obj'))
+        const hasModel = files.some(file => file.endsWith('.obj') || file.endsWith('.glb') || file.endsWith('.gltf'))
         const hasMtl = files.some(file => file.endsWith('.mtl'))
         const hasTextures = files.some(file => file === 'textures')
-        
-        // Only require 3D model (.obj file) - no more room.jpg requirement
+        // const hasRoomImage = files.some(file => file === 'room.jpg') // Removed from check
+
+        // Only require 3D model (.obj, .glb, or .gltf file) - no more room.jpg requirement
         if (hasModel) {
-          const modelFile = files.find(file => file.endsWith('.obj'))
+          const modelFile = files.find(file => file.endsWith('.obj') || file.endsWith('.glb') || file.endsWith('.gltf'))
           const mtlFile = hasMtl ? files.find(file => file.endsWith('.mtl')) : undefined
           const textureFolder = hasTextures ? 'textures' : undefined
           
+          // Determine file format
+          const fileFormat = modelFile?.endsWith('.glb') ? 'glb' : 
+                           modelFile?.endsWith('.gltf') ? 'gltf' : 'obj'
+
           scans.push({
             id: folder.name,
             name: folder.name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
@@ -41,7 +46,8 @@ export async function GET() {
             modelPath: `/scans/${folder.name}/${modelFile}`,
             texturePath: textureFolder ? `/scans/${folder.name}/${textureFolder}` : undefined,
             roomImagePath: `/scans/${folder.name}/room.jpg`, // Keep for backward compatibility but not required
-            hasMtl: hasMtl
+            hasMtl: hasMtl,
+            fileFormat: fileFormat
           })
         }
       }

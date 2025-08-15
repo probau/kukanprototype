@@ -4,8 +4,9 @@ export interface Scan {
   folder: string
   modelPath: string
   texturePath?: string
-  roomImagePath?: string  // Now optional since we use dynamic screenshots
+  roomImagePath?: string // Now optional since we use dynamic screenshots
   hasMtl?: boolean
+  fileFormat?: 'obj' | 'glb' | 'gltf' // New field to track file format
 }
 
 export interface ChatMessage {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 're
 import * as THREE from 'three'
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js'
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { Scan } from '@/types/scan'
 import { Camera, Grid3X3 } from 'lucide-react'
@@ -188,40 +189,256 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     // Load MTL materials first, then OBJ model
     const mtlLoader = new MTLLoader()
     const objLoader = new OBJLoader()
+    const gltfLoader = new GLTFLoader()
     
     setIsLoading(true)
     setError(null)
+ 
+     // Check file extension to determine loader
+     const fileExtension = scan.modelPath.split('.').pop()?.toLowerCase()
+     const isGLB = fileExtension === 'glb'
+     const isGLTF = fileExtension === 'gltf'
+     const isOBJ = fileExtension === 'obj'
+     
+     console.log('Detected file format:', { fileExtension, isGLB, isGLTF, isOBJ })
+     
+     if (isGLB || isGLTF) {
+       // Load GLB/GLTF model
+       gltfLoader.load(
+         scan.modelPath,
+         (gltf) => {
+           console.log('GLB/GLTF loaded successfully:', gltf)
+           loadGLTFModel(gltf)
+         },
+         (progress) => {
+           // GLB/GLTF loading progress
+         },
+         (error) => {
+           console.error('Error loading GLB/GLTF:', error)
+           setError('Failed to load GLB/GLTF model')
+           setIsLoading(false)
+         }
+       )
+     } else if (isOBJ) {
+       // Check if MTL file exists for OBJ
+       const mtlPath = scan.modelPath.replace('.obj', '.mtl')
+       const hasMtl = scan.hasMtl === true
+       
+       if (hasMtl) {
+         // Load MTL first, then OBJ
+         mtlLoader.load(
+           mtlPath,
+           (materials) => {
+             materials.preload()
+             objLoader.setMaterials(materials)
+             
+             // Now load OBJ with materials
+             loadOBJModel()
+           },
+           (progress) => {
+             // MTL loading progress
+           },
+           (error) => {
+             console.warn('MTL loading failed, loading OBJ without materials:', error)
+             // Continue without materials
+             loadOBJModel()
+           }
+         )
+       } else {
+         // Load OBJ directly without materials
+         loadOBJModel()
+       }
+     } else {
+       setError(`Unsupported file format: ${fileExtension}`)
+       setIsLoading(false)
+     }
 
-    // Check if MTL file exists
-    const mtlPath = scan.modelPath.replace('.obj', '.mtl')
-    const hasMtl = scan.hasMtl === true
-
-    if (hasMtl) {
-      // Load MTL first, then OBJ
-      mtlLoader.load(
-        mtlPath,
-        (materials) => {
-          materials.preload()
-          objLoader.setMaterials(materials)
-          
-          // Now load OBJ with materials
-          loadOBJModel()
-        },
-        (progress) => {
-          // MTL loading progress
-        },
-        (error) => {
-          console.warn('MTL loading failed, loading OBJ without materials:', error)
-          // Continue without materials
-          loadOBJModel()
+    function loadGLTFModel(gltf: any) {
+      const object = gltf.scene
+      
+      // Calculate model bounds BEFORE centering
+      const box = new THREE.Box3().setFromObject(object)
+      const center = box.getCenter(new THREE.Vector3())
+      const size = box.getSize(new THREE.Vector3())
+      
+      // Validate bounds to prevent NaN values
+      if (isNaN(center.x) || isNaN(center.y) || isNaN(center.z) ||
+          isNaN(size.x) || isNaN(size.y) || isNaN(size.z)) {
+        console.error('Invalid GLB/GLTF model bounds detected:', { center, size })
+        setError('GLB/GLTF model has invalid geometry - cannot load')
+        setIsLoading(false)
+        return
+      }
+      
+      // Validate size values
+      if (size.x <= 0 || size.y <= 0 || size.z <= 0) {
+        console.error('GLB/GLTF model has zero or negative dimensions:', size)
+        setError('GLB/GLTF model has invalid dimensions - cannot load')
+        setIsLoading(false)
+        return
+      }
+      
+      console.log('GLB/GLTF model bounds validation passed:', { center, size })
+      
+      // Center the model at origin
+      object.position.sub(center)
+      
+      // Scale to fit in view (but don't make it too small)
+      const maxDim = Math.max(size.x, size.y, size.z)
+      const scale = Math.max(1.0, 5 / maxDim) // Ensure minimum scale of 1.0
+      
+      // Validate scale value
+      if (isNaN(scale) || scale <= 0) {
+        console.error('Invalid scale calculated for GLB/GLTF:', { maxDim, scale })
+        setError('GLB/GLTF model scaling failed - cannot load')
+        setIsLoading(false)
+        return
+      }
+      
+      console.log('GLB/GLTF scale calculation:', { maxDim, scale })
+      object.scale.setScalar(scale)
+      
+      // Reposition and resize the existing grid to match model
+      if (gridRef.current) {
+        // Remove old grid from scene
+        scene.remove(gridRef.current)
+      }
+      
+      // Create new grid with appropriate size
+      const gridSize = Math.max(size.x, size.z) * scale
+      const newGridHelper = new THREE.GridHelper(gridSize, 20)
+      newGridHelper.position.copy(object.position)
+      
+      // Update the grid reference
+      gridRef.current = newGridHelper
+      
+      // Add to scene only if grid should be visible
+      if (showGrid) {
+        scene.add(newGridHelper)
+      }
+      
+      // Add to scene
+      scene.add(object)
+      setIsLoading(false)
+ 
+      // Calculate final model bounds AFTER scaling and positioning
+      const finalBox = new THREE.Box3().setFromObject(object)
+      const finalSize = finalBox.getSize(new THREE.Vector3())
+      const finalCenter = finalBox.getCenter(new THREE.Vector3())
+      
+      // Debug logging
+      console.log('GLB/GLTF model loaded:', {
+        originalSize: size,
+        scaledSize: finalSize,
+        center: finalCenter,
+        scale: scale
+      })
+      
+      // Apply the same camera positioning logic as OBJ models
+      const maxSize = Math.max(finalSize.x, finalSize.y, finalSize.z)
+      const originalMaxSize = Math.max(size.x, size.y, size.z) // Check original size, not scaled
+      
+      if (originalMaxSize < 3.0) { // Check original size, not scaled size
+        // If model is too small, scale it up more aggressively
+        const targetSize = originalMaxSize < 1.0 ? 5.0 : 3.0 // Very small models get scaled to 5.0
+        const newScale = targetSize / originalMaxSize
+        
+        // Validate newScale
+        if (isNaN(newScale) || newScale <= 0) {
+          console.error('Invalid newScale calculated for GLB/GLTF:', { targetSize, originalMaxSize, newScale })
+          setError('GLB/GLTF model rescaling failed - cannot load')
+          setIsLoading(false)
+          return
         }
-      )
-    } else {
-      // Load OBJ directly without materials
-      loadOBJModel()
+        
+        console.log('Rescaling GLB/GLTF model:', { targetSize, originalMaxSize, newScale })
+        object.scale.multiplyScalar(newScale)
+        
+        // Recalculate bounds after rescaling
+        const newBox = new THREE.Box3().setFromObject(object)
+        const newSize = newBox.getSize(new THREE.Vector3())
+        const newCenter = newBox.getCenter(new THREE.Vector3())
+        
+        // Validate new bounds
+        if (isNaN(newSize.x) || isNaN(newSize.y) || isNaN(newSize.z) ||
+            isNaN(newCenter.x) || isNaN(newCenter.y) || isNaN(newCenter.z)) {
+          console.error('Invalid bounds after GLB/GLTF rescaling:', { newSize, newCenter })
+          setError('GLB/GLTF model rescaling produced invalid geometry - cannot load')
+          setIsLoading(false)
+          return
+        }
+        
+        console.log('GLB/GLTF model rescaled:', {
+          newSize,
+          newCenter,
+          newScale,
+          targetSize,
+          originalMaxSize
+        })
+        
+        // Position camera INSIDE the model bounds
+        const finalMaxSize = Math.max(newSize.x, newSize.y, newSize.z)
+        
+        // Place camera at the center of the model
+        camera.position.copy(newCenter)
+        
+        // Keep default FOV (no adjustment needed)
+        camera.fov = 75
+        camera.updateProjectionMatrix()
+        
+        // Update OrbitControls - camera stays at center, controls rotate around it
+        controls.target.copy(newCenter)
+        controls.minDistance = 0.1 // Very close since we're inside
+        controls.maxDistance = finalMaxSize * 0.8 // Increased from 0.4 to 0.8 for more panning range
+        controls.enablePan = true // Enable panning for exploration
+        controls.screenSpacePanning = true // Better panning behavior
+        
+        console.log('Camera positioned INSIDE small GLB/GLTF model:', {
+          originalMaxSize,
+          finalMaxSize,
+          position: camera.position.toArray(),
+          target: newCenter.toArray(),
+          fov: camera.fov
+        })
+      } else {
+        // For larger models, use traditional outside positioning
+        const optimalDistance = maxSize * 2.0 // Reduced from 4.0 to 2.0
+        
+        // Position camera to show entire model
+        camera.position.set(
+          finalCenter.x + optimalDistance,
+          finalCenter.y + optimalDistance * 0.8,
+          finalCenter.z + optimalDistance
+        )
+        camera.lookAt(finalCenter)
+        
+        // Update OrbitControls
+        controls.target.copy(finalCenter)
+        controls.minDistance = maxSize * 0.3
+        controls.maxDistance = maxSize * 8
+        
+        console.log('Camera positioned for large GLB/GLTF model:', {
+          originalMaxSize,
+          maxSize,
+          optimalDistance,
+          position: camera.position.toArray(),
+          target: finalCenter.toArray()
+        })
+      }
+      
+      console.log('Final GLB/GLTF camera position:', {
+        position: camera.position.toArray(),
+        target: controls.target.toArray()
+      })
+      
+      // Update camera projection
+      camera.updateProjectionMatrix()
+      
+      // Update controls
+      controls.update()
     }
-
-    function loadOBJModel() {
+ 
+     function loadOBJModel() {
       objLoader.load(
         scan.modelPath,
         (object) => {
