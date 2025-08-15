@@ -356,13 +356,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         // Update OrbitControls - camera stays at center, controls rotate around it
         if (controlsRef.current) {
           controlsRef.current.target.copy(newCenter)
-          controlsRef.current.minDistance = 0.1
-          controlsRef.current.maxDistance = finalMaxSize * 5 // Increased for better navigation
-          controlsRef.current.enablePan = true
-          controlsRef.current.screenSpacePanning = false // Standard panning behavior
-          controlsRef.current.enableZoom = true
-          controlsRef.current.enableRotate = true
-          controlsRef.current.zoomSpeed = 1.0
+          controlsRef.current.distance = finalMaxSize * 0.4 // Set initial distance
+          controlsRef.current.update() // Update camera position
         }
         
         console.log('Camera positioned INSIDE small local OBJ model:', {
@@ -562,11 +557,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         // Update OrbitControls - camera stays at center, controls rotate around it
         if (controlsRef.current) {
           controlsRef.current.target.copy(newCenter)
-          controlsRef.current.minDistance = 0.1 // Very close since we're inside
-          controlsRef.current.maxDistance = finalMaxSize * 0.8 // Increased from 0.4 to 0.8 for more panning range
-          controlsRef.current.enablePan = true // Enable panning for exploration
-          controlsRef.current.screenSpacePanning = false // Standard panning behavior
-          controlsRef.current.zoomSpeed = 1.0
+          controlsRef.current.distance = finalMaxSize * 0.4 // Set initial distance
+          controlsRef.current.update() // Update camera position
         }
         
         console.log('Camera positioned INSIDE small GLTF model:', {
@@ -669,29 +661,84 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
 
     mountRef.current.appendChild(renderer.domElement)
 
-    // Add OrbitControls for smooth camera movement
-    const controls = new OrbitControls(camera, renderer.domElement)
-    controls.enableDamping = true
-    controls.dampingFactor = 0.05
-    controls.screenSpacePanning = false // Changed to false for standard panning
-    controls.minDistance = 0.1
-    controls.maxDistance = 1000
-    controls.maxPolarAngle = Math.PI
-    controls.enablePan = true
-    controls.enableZoom = true
-    controls.enableRotate = true
-    
-    // Set mouse button behavior
-    controls.mouseButtons = {
-      LEFT: THREE.MOUSE.ROTATE,    // Left click = rotate
-      MIDDLE: THREE.MOUSE.DOLLY,   // Middle click = zoom
-      RIGHT: THREE.MOUSE.PAN       // Right click = pan
+    // Add custom camera controls for true forward/backward movement
+    const controls = {
+      target: new THREE.Vector3(0, 0, 0),
+      distance: 10,
+      phi: 0,
+      theta: 0,
+      
+      update: () => {
+        // Calculate camera position based on spherical coordinates
+        const x = controls.distance * Math.sin(controls.theta) * Math.cos(controls.phi)
+        const y = controls.distance * Math.sin(controls.phi)
+        const z = controls.distance * Math.cos(controls.theta) * Math.cos(controls.phi)
+        
+        camera.position.set(x, y, z)
+        camera.lookAt(controls.target)
+        camera.updateMatrixWorld()
+      }
     }
     
-    // Set zoom speed
-    controls.zoomSpeed = 1.0
-    
+    // Store controls reference
     controlsRef.current = controls
+
+    // Add mouse event handlers for custom controls
+    let isMouseDown = false
+    let mouseButton = 0
+    let lastMouseX = 0
+    let lastMouseY = 0
+
+    const onMouseDown = (event: MouseEvent) => {
+      isMouseDown = true
+      mouseButton = event.button
+      lastMouseX = event.clientX
+      lastMouseY = event.clientY
+    }
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (!isMouseDown) return
+
+      const deltaX = event.clientX - lastMouseX
+      const deltaY = event.clientY - lastMouseY
+
+      if (mouseButton === 0) { // Left click - rotate
+        controls.theta -= deltaX * 0.01
+        controls.phi -= deltaY * 0.01
+        controls.phi = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, controls.phi))
+      } else if (mouseButton === 2) { // Right click - pan
+        const panSpeed = controls.distance * 0.001
+        controls.target.x -= deltaX * panSpeed
+        controls.target.y += deltaY * panSpeed
+      }
+
+      controls.update()
+      lastMouseX = event.clientX
+      lastMouseY = event.clientY
+    }
+
+    const onMouseUp = () => {
+      isMouseDown = false
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      // Zoom in/out with scroll wheel
+      const zoomSpeed = 0.1
+      const zoomDelta = event.deltaY > 0 ? 1 + zoomSpeed : 1 - zoomSpeed
+      controls.distance *= zoomDelta
+      
+      // Ensure minimum and maximum distances
+      controls.distance = Math.max(0.1, Math.min(1000, controls.distance))
+      
+      controls.update()
+    }
+
+    // Add event listeners
+    renderer.domElement.addEventListener('mousedown', onMouseDown)
+    renderer.domElement.addEventListener('mousemove', onMouseMove)
+    renderer.domElement.addEventListener('mouseup', onMouseUp)
+    renderer.domElement.addEventListener('wheel', onWheel)
+    renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault()) // Prevent right-click menu
 
     // Create lights group for easy management
     const lightsGroup = new THREE.Group()
@@ -994,13 +1041,10 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         camera.fov = 75
         camera.updateProjectionMatrix()
         
-        // Update OrbitControls - camera stays at center, controls rotate around it
-        controls.target.copy(newCenter)
-        controls.minDistance = 0.1 // Very close since we're inside
-        controls.maxDistance = finalMaxSize * 0.8 // Increased from 0.4 to 0.8 for more panning range
-        controls.enablePan = true // Enable panning for exploration
-        controls.screenSpacePanning = false // Standard panning behavior
-        controls.zoomSpeed = 1.0
+        // Update custom controls
+        controls.target.copy(finalCenter)
+        controls.distance = maxSize * 2.0 // Set initial distance
+        controls.update() // Update camera position
         
         console.log('Camera positioned INSIDE small GLB/GLTF model:', {
           originalMaxSize,
@@ -1021,15 +1065,10 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         )
         camera.lookAt(finalCenter)
         
-        // Update OrbitControls
+        // Update custom controls
         controls.target.copy(finalCenter)
-        controls.minDistance = maxSize * 0.1 // Reduced for closer zoom
-        controls.maxDistance = maxSize * 20 // Increased for better navigation
-        controls.enablePan = true
-        controls.enableZoom = true
-        controls.enableRotate = true
-        controls.screenSpacePanning = false // Standard panning behavior
-        controls.zoomSpeed = 1.0
+        controls.distance = maxSize * 2.0 // Set initial distance
+        controls.update() // Update camera position
         
         console.log('Camera positioned for large GLB/GLTF model:', {
           originalMaxSize,
@@ -1185,10 +1224,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         
         // Update OrbitControls - camera stays at center, controls rotate around it
         controls.target.copy(newCenter)
-        controls.minDistance = 0.1 // Very close since we're inside
-        controls.maxDistance = finalMaxSize * 0.8 // Increased from 0.4 to 0.8 for more panning range
-        controls.enablePan = true // Enable panning for exploration
-        controls.screenSpacePanning = true // Better panning behavior
+        controls.distance = finalMaxSize * 0.4 // Set initial distance
+        controls.update() // Update camera position
         
         console.log('Camera positioned INSIDE small model:', {
           originalMaxSize,
@@ -1209,13 +1246,10 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         )
         camera.lookAt(finalCenter)
         
-        // Update OrbitControls
+        // Update custom controls
         controls.target.copy(finalCenter)
-        controls.minDistance = maxSize * 0.1 // Reduced for closer zoom
-        controls.maxDistance = maxSize * 20 // Increased for better navigation
-        controls.enablePan = true
-        controls.enableZoom = true
-        controls.enableRotate = true
+        controls.distance = maxSize * 2.0 // Set initial distance
+        controls.update() // Update camera position
         
         console.log('Camera positioned for large model:', {
           originalMaxSize,
@@ -1268,6 +1302,15 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize)
+      
+      // Remove custom event listeners
+      if (renderer.domElement) {
+        renderer.domElement.removeEventListener('mousedown', onMouseDown)
+        renderer.domElement.removeEventListener('mousemove', onMouseMove)
+        renderer.domElement.removeEventListener('mouseup', onMouseUp)
+        renderer.domElement.removeEventListener('wheel', onWheel)
+        renderer.domElement.removeEventListener('contextmenu', (e) => e.preventDefault())
+      }
       
       if (mountRef.current && renderer.domElement) {
         mountRef.current.removeChild(renderer.domElement)
@@ -1376,10 +1419,8 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
                          
                          // Update controls - stay inside model bounds
                          controls.target.copy(center)
-                         controls.minDistance = 0.1
-                         controls.maxDistance = maxSize * 0.8
-                         controls.enablePan = true
-                         controls.screenSpacePanning = true
+                         controls.distance = maxSize * 0.8 // Set initial distance
+                         controls.update() // Update camera position
                          
                          console.log('Reset camera INSIDE small model:', {
                            estimatedOriginalSize,
