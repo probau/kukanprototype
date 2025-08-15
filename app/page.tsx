@@ -132,24 +132,22 @@ export default function Home() {
               />
               
               {/* File Upload Button */}
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center space-x-2"
-                  title="Upload 3D Model"
-                  disabled={isUploading}
-                >
-                  <Upload className="h-4 w-4" />
-                  <span>Upload Model</span>
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".obj,.glb,.gltf"
-                  onChange={handleFileInputChange}
-                  className="hidden"
-                />
-              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center space-x-2"
+                title="Upload 3D Model"
+                disabled={isUploading}
+              >
+                <Upload className="h-4 w-4" />
+                <span>Upload Model</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".obj,.glb,.gltf"
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
             </div>
           </div>
         </div>
