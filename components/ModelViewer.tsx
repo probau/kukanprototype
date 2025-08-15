@@ -707,9 +707,19 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
         controls.phi -= deltaY * 0.01
         controls.phi = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, controls.phi))
       } else if (mouseButton === 2) { // Right click - pan
-        const panSpeed = controls.distance * 0.001
+        // Improved panning with better sensitivity
+        const panSpeed = Math.max(0.001, controls.distance * 0.0005)
         controls.target.x -= deltaX * panSpeed
         controls.target.y += deltaY * panSpeed
+        
+        // Debug logging for panning
+        console.log('Right-click panning:', {
+          deltaX,
+          deltaY,
+          panSpeed,
+          distance: controls.distance,
+          newTarget: controls.target.toArray()
+        })
       }
 
       controls.update()
