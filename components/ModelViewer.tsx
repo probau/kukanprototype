@@ -725,38 +725,77 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
       if (scan.hasMtl) {
         // Load MTL first, then OBJ
         const mtlLoader = new MTLLoader()
-        const basePath = scan.modelPath.substring(0, scan.modelPath.lastIndexOf('/') + 1)
-        mtlLoader.setPath(basePath)
         
-        mtlLoader.load(
-          scan.texturePath ? `${scan.texturePath}/model.mtl` : `${basePath}model.mtl`,
-          (materials) => {
-            materials.preload()
-            const objLoader = new OBJLoader()
-            objLoader.setMaterials(materials)
-            objLoader.load(
-              scan.modelPath,
-              (object) => {
-                loadOBJModelFromObject(object)
-                setIsLoading(false)
-              },
-              (progress) => {
-                // Progress callback
-              },
-              (error) => {
-                setError('Failed to load OBJ model')
-                setIsLoading(false)
-              }
-            )
-          },
-          (progress) => {
-            // Progress callback
-          },
-          (error) => {
-            setError('Failed to load MTL file')
-            setIsLoading(false)
-          }
-        )
+        // For server models, construct the correct MTL path
+        if (scan.modelPath.startsWith('/scans/')) {
+          // Server model - MTL is in the same folder as OBJ
+          const folderPath = scan.modelPath.substring(0, scan.modelPath.lastIndexOf('/'))
+          const mtlPath = `${folderPath}/model.mtl`
+          mtlLoader.setPath('/') // Set root path since we're using absolute paths
+          
+          mtlLoader.load(
+            mtlPath,
+            (materials) => {
+              materials.preload()
+              const objLoader = new OBJLoader()
+              objLoader.setMaterials(materials)
+              objLoader.load(
+                scan.modelPath,
+                (object) => {
+                  loadOBJModelFromObject(object)
+                  setIsLoading(false)
+                },
+                (progress) => {
+                  // Progress callback
+                },
+                (error) => {
+                  setError('Failed to load OBJ model')
+                  setIsLoading(false)
+                }
+              )
+            },
+            (progress) => {
+              // Progress callback
+            },
+            (error) => {
+              console.warn('MTL loading failed, loading OBJ without materials:', error)
+              // Continue without materials
+              const objLoader = new OBJLoader()
+              objLoader.load(
+                scan.modelPath,
+                (object) => {
+                  loadOBJModelFromObject(object)
+                  setIsLoading(false)
+                },
+                (progress) => {
+                  // Progress callback
+                },
+                (error) => {
+                  setError('Failed to load OBJ model')
+                  setIsLoading(false)
+                }
+              )
+            }
+          )
+        } else {
+          // Local uploaded model - no MTL support for now
+          console.log('Local uploaded OBJ model - loading without materials')
+          const objLoader = new OBJLoader()
+          objLoader.load(
+            scan.modelPath,
+            (object) => {
+              loadOBJModelFromObject(object)
+              setIsLoading(false)
+            },
+            (progress) => {
+              // Progress callback
+            },
+            (error) => {
+              setError('Failed to load OBJ model')
+              setIsLoading(false)
+            }
+          )
+        }
       } else {
         // Load OBJ without MTL
         const objLoader = new OBJLoader()
