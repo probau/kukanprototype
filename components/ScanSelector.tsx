@@ -34,11 +34,6 @@ export default function ScanSelector({ scans, selectedScan, onScanSelect }: Scan
         <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
       </div>
       
-      {selectedScan && (
-        <div className="mt-2 text-xs text-gray-500 truncate max-w-48">
-          Selected: {selectedScan.name}
-        </div>
-      )}
     </div>
   )
 }
