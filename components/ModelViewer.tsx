@@ -622,6 +622,22 @@ export default forwardRef<ModelViewerRef, ModelViewerProps>(function ModelViewer
   useEffect(() => {
     if (!mountRef.current) return
 
+    // Set loading state when scan changes
+    setIsLoading(true)
+    setError(null)
+
+    // Clear previous scene content
+    if (sceneRef.current) {
+      // Remove all objects except lights and grid
+      const objectsToRemove: THREE.Object3D[] = []
+      sceneRef.current.traverse((child) => {
+        if (child.type === 'Group' && child !== lightsRef.current && child !== gridRef.current) {
+          objectsToRemove.push(child)
+        }
+      })
+      objectsToRemove.forEach(obj => sceneRef.current!.remove(obj))
+    }
+
     // Scene setup
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0xf8f9fa) // Lighter background for better contrast
