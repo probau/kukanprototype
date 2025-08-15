@@ -56,13 +56,17 @@ export default function Home() {
     setIsUploading(true)
     setUploadError(null)
 
+    // Determine file format from the original filename
+    const fileFormat = fileExtension === '.glb' ? 'glb' : 
+                      fileExtension === '.gltf' ? 'gltf' : 'obj'
+
     // Create a new scan entry for the uploaded file
     const newScan: Scan = {
       id: `uploaded-${Date.now()}`,
       name: `Uploaded: ${file.name}`,
       folder: 'uploaded',
       modelPath: URL.createObjectURL(file),
-      fileFormat: fileExtension === '.glb' ? 'glb' : fileExtension === '.gltf' ? 'gltf' : 'obj',
+      fileFormat: fileFormat,
       hasMtl: false
     }
 
@@ -71,7 +75,13 @@ export default function Home() {
     setSelectedScan(newScan)
     setIsUploading(false)
 
-    console.log('File uploaded successfully:', { fileName: file.name, fileSize: file.size, fileExtension })
+    console.log('File uploaded successfully:', { 
+      fileName: file.name, 
+      fileSize: file.size, 
+      fileExtension,
+      fileFormat,
+      modelPath: newScan.modelPath
+    })
   }
 
   const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
