@@ -25,9 +25,21 @@ const nextConfig = {
       },
     ];
   },
-  // Increase body parser limit for API routes
+  // Add PostHog rewrites and preserve existing ones
   async rewrites() {
     return [
+      {
+        source: '/ingest/static/:path*',
+        destination: 'https://eu-assets.i.posthog.com/static/:path*',
+      },
+      {
+        source: '/ingest/:path*',
+        destination: 'https://eu.i.posthog.com/:path*',
+      },
+      {
+        source: '/ingest/flags',
+        destination: 'https://eu.i.posthog.com/flags',
+      },
       {
         source: '/api/chat',
         destination: '/api/chat',
@@ -41,6 +53,8 @@ const nextConfig = {
       },
     ];
   },
-}
+  // This is required to support PostHog trailing slash API requests
+  skipTrailingSlashRedirect: true,
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;
